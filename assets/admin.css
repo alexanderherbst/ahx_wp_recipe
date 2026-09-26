@@ -1,0 +1,34 @@
+.ahx-recipe-editor > p > label,
+.ahx-recipe-editor > p > select {
+    display: block;
+}
+
+.ahx-recipe-editor #ahx-recipe-servings {
+    width: 100px;
+}
+
+.ahx-recipe-editor #ahx-recipe-layout {
+    min-width: 340px;
+}
+
+.ahx-recipe-row {
+    display: grid;
+    grid-template-columns: 110px 130px minmax(180px, 1fr) 34px;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.ahx-recipe-row input {
+    width: 100%;
+}
+
+@media (max-width: 700px) {
+    .ahx-recipe-row {
+        grid-template-columns: 1fr 1fr 34px;
+    }
+
+    .ahx-recipe-row input:nth-child(3) {
+        grid-column: 1 / 3;
+        grid-row: 2;
+    }
+}
