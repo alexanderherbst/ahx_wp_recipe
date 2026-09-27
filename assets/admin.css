@@ -28,3 +28,31 @@
 .ahx-recipe-row input {
     width: 100%;
 }
+
+.ahx-recipe-image-grid {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    margin-block: 16px;
+    max-width: 960px;
+}
+
+.ahx-recipe-image-choice {
+    border: 2px solid transparent;
+    border-radius: 4px;
+    cursor: pointer;
+    display: block;
+    padding: 4px;
+}
+
+.ahx-recipe-image-choice:has(input:checked) {
+    border-color: #2271b1;
+}
+
+.ahx-recipe-image-choice img {
+    aspect-ratio: 4 / 3;
+    display: block;
+    height: auto;
+    object-fit: cover;
+    width: 100%;
+}

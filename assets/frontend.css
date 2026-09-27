@@ -1,3 +1,5 @@
+/* Higher specificity than the theme's generic ".entry-content > *" module margin */
+.entry-content > .ahx-recipe,
 .ahx-recipe {
     --recipe-ink: #24332f;
     --recipe-muted: #65736c;
@@ -17,6 +19,26 @@
     width: 100%;
     max-height: 560px;
     object-fit: cover;
+}
+
+.ahx-recipe__gallery {
+    display: grid;
+    gap: .5rem;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    margin-bottom: 1.5rem;
+}
+
+.ahx-recipe__gallery-image {
+    aspect-ratio: 4 / 3;
+    display: block;
+    height: auto;
+    object-fit: cover;
+    width: 100%;
+}
+
+.ahx-recipe__source {
+    color: var(--recipe-muted);
+    font-size: .9em;
 }
 
 .ahx-recipe__servings {

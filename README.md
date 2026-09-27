@@ -8,6 +8,8 @@ WordPress plugin for managing recipes as a site-local custom post type. It works
 - Three display layouts: classic, split view and checklist cooking mode.
 - Servings control scales numeric and fractional quantities. Published recipes on public HTTPS sites expose Schema.org Recipe microdata. The Bring! button uses Bring!'s recipe deep link with the recipe's own WordPress permalink and current servings so Bring! can parse the recipe and handle sign-in and native list selection. For unpublished recipes or sites without a public HTTPS URL, it copies scaled ingredients (checked ingredients only if any are checked) and opens Bring! Web for manual entry.
 - Import of HTML, DOCX, PDF and TXT files, plus Chefkoch recipe URLs, into editable recipe drafts. Chefkoch structured recipe data is read from schema.org JSON-LD. Only HTTPS URLs on `chefkoch.de` are fetched. PDF extraction requires `pdftotext`; DOCX extraction requires PHP `ZipArchive`. Imported files with recognizable ingredient and instruction headings are split into fields; other text remains in the recipe editor for manual cleanup.
+- Chefkoch imports collect candidate recipe images (schema.org image data plus additional images from the page) and show a review step where the user picks which images actually belong to the recipe before the draft is created. The first selected image becomes the featured image, additional ones are stored as a gallery shown below it.
+- Optional source field ("Quelle") per recipe, editable in the recipe editor. Chefkoch imports fill it in automatically with the source URL; published recipes show a source link on the frontend.
 - Recipe archive at `/rezepte/` and shortcode `[ahx_wp_recipes]` (optional count: `[ahx_wp_recipes number="8"]`).
 
 ## Bring! setup
