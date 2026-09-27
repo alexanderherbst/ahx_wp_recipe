@@ -23,6 +23,18 @@ document.addEventListener('input', function (event) {
 });
 
 document.addEventListener('change', function (event) {
+    const layoutSelect = event.target.closest('[data-ahx-layout]');
+    if (!layoutSelect) {
+        return;
+    }
+
+    const recipe = layoutSelect.closest('[data-ahx-recipe]');
+    ['classic', 'split', 'checklist'].forEach(function (layout) {
+        recipe.classList.toggle('ahx-recipe--' + layout, layoutSelect.value === layout);
+    });
+});
+
+document.addEventListener('change', function (event) {
     if (!event.target.matches('[data-ahx-check]')) {
         return;
     }
@@ -52,9 +64,11 @@ document.addEventListener('click', function (event) {
         const amount = ingredient.querySelector('[data-ahx-amount]');
         const unit = ingredient.querySelector('[data-ahx-unit]');
         const item = ingredient.querySelector('[data-ahx-item]');
-        return [amount ? amount.textContent.trim() : '', unit ? unit.textContent.trim() : '', item ? item.textContent.trim() : '']
+        const addition = ingredient.querySelector('[data-ahx-addition]');
+        const mainText = [amount ? amount.textContent.trim() : '', unit ? unit.textContent.trim() : '', item ? item.textContent.trim() : '']
             .filter(Boolean)
             .join(' ');
+        return [mainText, addition ? addition.textContent.trim() : ''].filter(Boolean).join('\n');
     }).filter(Boolean).join('\n');
 
     if (!text) {

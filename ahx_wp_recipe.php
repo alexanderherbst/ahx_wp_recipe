@@ -2,7 +2,7 @@
 /**
  * Plugin Name: AHX WP Recipe
  * Description: Rezepte verwalten, skalieren, anzeigen und für Bring! vorbereiten.
- * Version: v1.0.0
+ * Version: v1.1.0
  * Author: Alexander Herbst
  * Text Domain: ahx_wp_recipe
  */
@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('AHX_WP_RECIPE_VERSION', 'v1.0.0');
+define('AHX_WP_RECIPE_VERSION', 'v1.1.0');
 define('AHX_WP_RECIPE_PATH', plugin_dir_path(__FILE__));
 define('AHX_WP_RECIPE_URL', plugin_dir_url(__FILE__));
 
@@ -34,6 +34,62 @@ function ahx_wp_recipe_register_post_type() {
     ]);
 }
 add_action('init', 'ahx_wp_recipe_register_post_type');
+
+function ahx_wp_recipe_split_ingredient_item($item) {
+    $additions = [];
+    $label = preg_replace_callback('/\(([^()]*)\)/u', static function ($matches) use (&$additions) {
+        $text = trim($matches[1]);
+        if (preg_match('/^(n|en|e)$/iu', $text)) {
+            return $matches[0];
+        }
+        if ($text !== '') {
+            $additions[] = $text;
+        }
+        return '';
+    }, (string) $item);
+
+    return [
+        'label' => trim(preg_replace('/\s+/u', ' ', (string) $label)),
+        'addition' => implode('; ', $additions),
+    ];
+}
+
+function ahx_wp_recipe_normalize_ingredients($ingredients) {
+    $normalized = [];
+    foreach ((array) $ingredients as $ingredient) {
+        if (!is_array($ingredient)) {
+            continue;
+        }
+        if (array_key_exists('label', $ingredient)) {
+            $label = trim((string) $ingredient['label']);
+            $addition = trim((string) ($ingredient['addition'] ?? ''));
+        } else {
+            $split = ahx_wp_recipe_split_ingredient_item($ingredient['item'] ?? '');
+            $label = $split['label'];
+            $addition = $split['addition'];
+        }
+
+        if ($label === '' && $addition === '') {
+            continue;
+        }
+        $normalized[] = [
+            'quantity' => trim((string) ($ingredient['quantity'] ?? '')),
+            'unit' => trim((string) ($ingredient['unit'] ?? '')),
+            'label' => $label,
+            'addition' => $addition,
+        ];
+    }
+    return $normalized;
+}
+
+function ahx_wp_recipe_get_ingredients($post_id, $persist_migration = false) {
+    $stored = get_post_meta($post_id, '_ahx_recipe_ingredients', true);
+    $normalized = ahx_wp_recipe_normalize_ingredients($stored);
+    if ($persist_migration && is_array($stored) && $stored !== $normalized) {
+        update_post_meta($post_id, '_ahx_recipe_ingredients', $normalized);
+    }
+    return $normalized;
+}
 
 function ahx_wp_recipe_activate($network_wide) {
     if (is_multisite() && $network_wide) {
@@ -73,11 +129,10 @@ function ahx_wp_recipe_render_meta_box($post) {
     wp_nonce_field('ahx_wp_recipe_save', 'ahx_wp_recipe_nonce');
     $servings = max(1, (int) get_post_meta($post->ID, '_ahx_recipe_servings', true));
     $layout = get_post_meta($post->ID, '_ahx_recipe_layout', true) ?: 'classic';
-    $ingredients = get_post_meta($post->ID, '_ahx_recipe_ingredients', true);
+    $ingredients = ahx_wp_recipe_get_ingredients($post->ID, true);
     $instructions = get_post_meta($post->ID, '_ahx_recipe_instructions', true);
-    $ingredients = is_array($ingredients) ? $ingredients : [];
     if (!$ingredients) {
-        $ingredients = [['quantity' => '', 'unit' => '', 'item' => '']];
+        $ingredients = [['quantity' => '', 'unit' => '', 'label' => '', 'addition' => '']];
     }
     $instructions = is_array($instructions) ? $instructions : [];
     ?>
@@ -101,7 +156,8 @@ function ahx_wp_recipe_render_meta_box($post) {
                 <div class="ahx-recipe-row">
                     <input name="ahx_recipe_ingredients[<?php echo esc_attr($ingredient_index); ?>][quantity]" type="text" inputmode="decimal" placeholder="<?php esc_attr_e('Menge', 'ahx_wp_recipe'); ?>" value="<?php echo esc_attr($ingredient['quantity'] ?? ''); ?>">
                     <input name="ahx_recipe_ingredients[<?php echo esc_attr($ingredient_index); ?>][unit]" type="text" placeholder="<?php esc_attr_e('Einheit', 'ahx_wp_recipe'); ?>" value="<?php echo esc_attr($ingredient['unit'] ?? ''); ?>">
-                    <input name="ahx_recipe_ingredients[<?php echo esc_attr($ingredient_index); ?>][item]" type="text" placeholder="<?php esc_attr_e('Zutat', 'ahx_wp_recipe'); ?>" value="<?php echo esc_attr($ingredient['item'] ?? ''); ?>">
+                    <input name="ahx_recipe_ingredients[<?php echo esc_attr($ingredient_index); ?>][label]" type="text" placeholder="<?php esc_attr_e('Bezeichnung', 'ahx_wp_recipe'); ?>" value="<?php echo esc_attr($ingredient['label'] ?? ''); ?>">
+                    <input name="ahx_recipe_ingredients[<?php echo esc_attr($ingredient_index); ?>][addition]" type="text" placeholder="<?php esc_attr_e('Ergänzung', 'ahx_wp_recipe'); ?>" value="<?php echo esc_attr($ingredient['addition'] ?? ''); ?>">
                     <button type="button" class="button ahx-recipe-remove-row" aria-label="<?php esc_attr_e('Zutat entfernen', 'ahx_wp_recipe'); ?>">&minus;</button>
                 </div>
             <?php endforeach; ?>
@@ -135,11 +191,12 @@ function ahx_wp_recipe_save_meta($post_id) {
         if (!is_array($ingredient)) {
             continue;
         }
-        $item = sanitize_text_field($ingredient['item'] ?? '');
+        $label = sanitize_text_field($ingredient['label'] ?? '');
+        $addition = sanitize_text_field($ingredient['addition'] ?? '');
         $quantity = preg_replace('/[^0-9.,\/\s-]/', '', (string) ($ingredient['quantity'] ?? ''));
         $unit = sanitize_text_field($ingredient['unit'] ?? '');
-        if ($item !== '') {
-            $ingredients[] = ['quantity' => trim($quantity), 'unit' => $unit, 'item' => $item];
+        if ($label !== '' || $addition !== '') {
+            $ingredients[] = ['quantity' => trim($quantity), 'unit' => $unit, 'label' => $label, 'addition' => $addition];
         }
     }
     update_post_meta($post_id, '_ahx_recipe_ingredients', $ingredients);
@@ -493,7 +550,7 @@ function ahx_wp_recipe_create_imported_draft($parsed, $title_override = '') {
     }
     update_post_meta($post_id, '_ahx_recipe_servings', max(1, (int) ($parsed['servings'] ?? 4)));
     update_post_meta($post_id, '_ahx_recipe_layout', 'classic');
-    update_post_meta($post_id, '_ahx_recipe_ingredients', (array) ($parsed['ingredients'] ?? []));
+    update_post_meta($post_id, '_ahx_recipe_ingredients', ahx_wp_recipe_normalize_ingredients($parsed['ingredients'] ?? []));
     update_post_meta($post_id, '_ahx_recipe_instructions', (array) ($parsed['instructions'] ?? []));
     if (!empty($parsed['source_url'])) {
         update_post_meta($post_id, '_ahx_recipe_source_url', esc_url_raw($parsed['source_url']));
@@ -581,10 +638,25 @@ function ahx_wp_recipe_bring_deeplink($recipe_url, $base_quantity) {
     ], 'https://api.getbring.com/rest/bringrecipes/deeplink');
 }
 
+function ahx_wp_recipe_format_bring_ingredient($quantity, $unit, $item) {
+    $item = trim((string) $item);
+    $item = preg_replace('/([\p{L}])\((n|en|e)\)/iu', '$1$2', $item);
+    $item = preg_replace('/\s*\([^)]*\)/u', '', $item);
+    $item = trim(preg_replace('/\s+/u', ' ', $item));
+
+    $quantity = trim((string) $quantity);
+    $unit = trim((string) $unit);
+    $amount = $quantity;
+    if ($unit !== '') {
+        $amount .= $unit;
+    }
+
+    return trim($amount . ($amount !== '' && $item !== '' ? ' ' : '') . $item);
+}
+
 function ahx_wp_recipe_render_recipe($post_id, $content = '') {
-    $ingredients = get_post_meta($post_id, '_ahx_recipe_ingredients', true);
+    $ingredients = ahx_wp_recipe_get_ingredients($post_id);
     $instructions = get_post_meta($post_id, '_ahx_recipe_instructions', true);
-    $ingredients = is_array($ingredients) ? $ingredients : [];
     $instructions = is_array($instructions) ? $instructions : [];
     $servings = max(1, (int) get_post_meta($post_id, '_ahx_recipe_servings', true));
     $recipe_url = get_post_status($post_id) === 'publish' ? get_permalink($post_id) : '';
@@ -603,6 +675,13 @@ function ahx_wp_recipe_render_recipe($post_id, $content = '') {
         <?php if (trim($content) !== '') : ?><div class="ahx-recipe__intro"><?php echo wp_kses_post(wpautop($content)); ?></div><?php endif; ?>
         <div class="ahx-recipe__servings">
             <label><?php esc_html_e('Portionen', 'ahx_wp_recipe'); ?> <input type="number" min="1" max="999" value="<?php echo esc_attr($servings); ?>" data-ahx-servings></label>
+            <label class="ahx-recipe__layout-control"><span><?php esc_html_e('Darstellung', 'ahx_wp_recipe'); ?></span>
+                <select data-ahx-layout>
+                    <option value="classic" <?php selected($layout, 'classic'); ?>><?php esc_html_e('Klassisch', 'ahx_wp_recipe'); ?></option>
+                    <option value="split" <?php selected($layout, 'split'); ?>><?php esc_html_e('Zweiteilig', 'ahx_wp_recipe'); ?></option>
+                    <option value="checklist" <?php selected($layout, 'checklist'); ?>><?php esc_html_e('Kochmodus', 'ahx_wp_recipe'); ?></option>
+                </select>
+            </label>
         </div>
         <div class="ahx-recipe__body">
             <section class="ahx-recipe__ingredients">
@@ -610,7 +689,11 @@ function ahx_wp_recipe_render_recipe($post_id, $content = '') {
                 <?php if ($ingredients) : ?><ul><?php foreach ($ingredients as $ingredient) :
                     $amount = ahx_wp_recipe_parse_quantity($ingredient['quantity'] ?? '');
                     $shown_amount = $amount === null ? (string) ($ingredient['quantity'] ?? '') : rtrim(rtrim(number_format($amount, 3, '.', ''), '0'), '.');
-                    ?><li class="ahx-recipe__ingredient" itemprop="recipeIngredient"><label><input type="checkbox" data-ahx-check><span><span data-ahx-amount data-base="<?php echo esc_attr($amount === null ? '' : $amount); ?>"><?php echo esc_html($shown_amount); ?></span><?php if (!empty($ingredient['unit'])) : ?> <span data-ahx-unit><?php echo esc_html($ingredient['unit']); ?></span><?php endif; ?> <span data-ahx-item><?php echo esc_html($ingredient['item'] ?? ''); ?></span></span></label></li>
+                    $label = $ingredient['label'] ?? '';
+                    $addition = trim((string) ($ingredient['addition'] ?? ''));
+                    $copy_class = 'ahx-recipe__ingredient-copy' . ($addition !== '' ? ' has-addition' : '');
+                    $bring_ingredient = ahx_wp_recipe_format_bring_ingredient($shown_amount, $ingredient['unit'] ?? '', $label);
+                    ?><li class="ahx-recipe__ingredient"><meta itemprop="recipeIngredient" content="<?php echo esc_attr($bring_ingredient); ?>"><input type="checkbox" data-ahx-check><span class="ahx-recipe__ingredient-amount"><span data-ahx-amount data-base="<?php echo esc_attr($amount === null ? '' : $amount); ?>"><?php echo esc_html($shown_amount); ?></span><?php if (!empty($ingredient['unit'])) : ?> <span data-ahx-unit><?php echo esc_html($ingredient['unit']); ?></span><?php endif; ?></span><span class="<?php echo esc_attr($copy_class); ?>"><span data-ahx-item><?php echo esc_html($label); ?></span><?php if ($addition !== '') : ?><span class="ahx-recipe__ingredient-addition" data-ahx-addition><?php echo esc_html($addition); ?></span><?php endif; ?></span></li>
                 <?php endforeach; ?></ul><?php else : ?><p><?php esc_html_e('Noch keine Zutaten eingetragen.', 'ahx_wp_recipe'); ?></p><?php endif; ?>
                 <?php if ($ingredients) : ?>
                     <div class="ahx-recipe__bring-form">
@@ -625,7 +708,7 @@ function ahx_wp_recipe_render_recipe($post_id, $content = '') {
             </section>
             <section class="ahx-recipe__instructions">
                 <h2><?php esc_html_e('Zubereitung', 'ahx_wp_recipe'); ?></h2>
-                <?php if ($instructions) : ?><ol><?php foreach ($instructions as $instruction) : ?><li itemprop="recipeInstructions" itemscope itemtype="https://schema.org/HowToStep"><?php if ($layout === 'checklist') : ?><label><input type="checkbox" data-ahx-step-check> <?php endif; ?><span itemprop="text"><?php echo esc_html($instruction); ?></span><?php if ($layout === 'checklist') : ?></label><?php endif; ?></li><?php endforeach; ?></ol><?php else : ?><p><?php esc_html_e('Noch keine Zubereitungsschritte eingetragen.', 'ahx_wp_recipe'); ?></p><?php endif; ?>
+                <?php if ($instructions) : ?><ol><?php foreach ($instructions as $instruction) : ?><li itemprop="recipeInstructions" itemscope itemtype="https://schema.org/HowToStep"><label class="ahx-recipe__step-label"><input type="checkbox" data-ahx-step-check><span itemprop="text"><?php echo esc_html($instruction); ?></span></label></li><?php endforeach; ?></ol><?php else : ?><p><?php esc_html_e('Noch keine Zubereitungsschritte eingetragen.', 'ahx_wp_recipe'); ?></p><?php endif; ?>
             </section>
         </div>
     </article>

@@ -20,14 +20,33 @@
 }
 
 .ahx-recipe__servings {
+    align-items: center;
     border-block: 1px solid var(--recipe-line);
+    display: flex;
+    gap: 1rem;
+    justify-content: space-between;
     margin: 1.25rem 0;
     padding: .8rem 0;
 }
 
-.ahx-recipe__servings input {
+.ahx-recipe__servings > label {
+    align-items: center;
+    display: flex;
+    gap: .5rem;
+}
+
+.ahx-recipe__servings input[type="number"] {
     margin-inline-start: .5rem;
     width: 5rem;
+}
+
+.ahx-recipe__layout-control {
+    justify-content: flex-end;
+    margin-inline-start: auto;
+}
+
+.ahx-recipe__layout-control select {
+    max-width: min(11rem, 48vw);
 }
 
 .ahx-recipe__body {
@@ -45,17 +64,56 @@
     padding-inline-start: 1.4rem;
 }
 
+.ahx-recipe__ingredients ul {
+    list-style: none;
+    padding-inline-start: 0;
+}
+
 .ahx-recipe__ingredient {
-    margin-block: .55rem;
+    align-items: center;
+    border-bottom: 1px solid var(--recipe-line);
+    column-gap: .75rem;
+    display: grid;
+    grid-template-columns: 1.25rem minmax(4.5rem, max-content) minmax(0, 1fr);
+    list-style: none;
+    margin: 0;
+    padding-block: .65rem;
 }
 
-.ahx-recipe__ingredient label {
-    align-items: baseline;
-    display: flex;
-    gap: .55rem;
+.ahx-recipe__ingredient:last-child {
+    border-bottom: 0;
 }
 
-.ahx-recipe__ingredient.is-checked > label > span {
+.ahx-recipe__ingredient input[type="checkbox"] {
+    align-self: center;
+    margin: 0;
+}
+
+.ahx-recipe__ingredient-amount {
+    text-align: end;
+    white-space: nowrap;
+}
+
+.ahx-recipe__ingredient-copy {
+    display: block;
+    min-width: 0;
+    text-align: start;
+}
+
+.ahx-recipe__ingredient-copy.has-addition {
+    display: grid;
+    gap: .1rem;
+}
+
+.ahx-recipe__ingredient-copy:not(.has-addition) [data-ahx-item] {
+    display: inline;
+}
+
+.ahx-recipe__ingredient-addition {
+    color: var(--recipe-muted);
+}
+
+.ahx-recipe__ingredient.is-checked > .ahx-recipe__ingredient-copy {
     color: var(--recipe-muted);
     text-decoration: line-through;
 }
@@ -63,6 +121,14 @@
 .ahx-recipe__instructions li {
     margin-block: 0 1rem;
     padding-inline-start: .35rem;
+}
+
+.ahx-recipe__step-label {
+    display: block;
+}
+
+.ahx-recipe__step-label input[type="checkbox"] {
+    display: none;
 }
 
 .ahx-recipe__instructions li.is-checked {
@@ -115,7 +181,31 @@
 }
 
 .ahx-recipe--checklist .ahx-recipe__instructions li {
+    list-style: none;
     padding-block: .5rem;
+    padding-inline-start: 0;
+}
+
+.ahx-recipe--checklist .ahx-recipe__instructions ol {
+    list-style: none;
+    padding-inline-start: 0;
+}
+
+.ahx-recipe--checklist .ahx-recipe__instructions li label {
+    align-items: flex-start;
+    display: flex;
+    gap: .55rem;
+}
+
+.ahx-recipe--checklist .ahx-recipe__step-label input[type="checkbox"] {
+    display: inline-block;
+    flex: 0 0 auto;
+    margin-block: .2em 0;
+}
+
+.ahx-recipe--checklist .ahx-recipe__instructions input[type="checkbox"] {
+    flex: 0 0 auto;
+    margin-block: .2em 0;
 }
 
 .ahx-recipe-list {
