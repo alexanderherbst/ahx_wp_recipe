@@ -1,3 +1,214 @@
+.ahx-recipe-dashboard {
+    max-width: 1400px;
+}
+
+.ahx-recipe-dashboard__heading,
+.ahx-recipe-dashboard__section-heading {
+    align-items: center;
+    display: flex;
+    gap: 16px;
+    justify-content: space-between;
+}
+
+.ahx-recipe-dashboard__heading {
+    margin: 20px 0;
+}
+
+.ahx-recipe-dashboard__heading h1,
+.ahx-recipe-dashboard__section-heading h2 {
+    margin: 0;
+}
+
+.ahx-recipe-dashboard__version {
+    color: #646970;
+    margin: 6px 0 0;
+}
+
+.ahx-recipe-dashboard__heading .button {
+    align-items: center;
+    display: inline-flex;
+    gap: 6px;
+}
+
+.ahx-recipe-dashboard__stats {
+    display: grid;
+    gap: 12px;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.ahx-recipe-dashboard__stat {
+    align-items: center;
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    border-left: 4px solid #2271b1;
+    border-radius: 4px;
+    color: #1d2327;
+    display: grid;
+    gap: 10px;
+    grid-template-columns: 36px minmax(0, 1fr) 20px;
+    min-width: 0;
+    padding: 16px;
+    text-decoration: none;
+}
+
+a.ahx-recipe-dashboard__stat:hover,
+a.ahx-recipe-dashboard__stat:focus-visible {
+    border-color: #2271b1;
+    box-shadow: 0 0 0 1px #2271b1;
+    color: #135e96;
+}
+
+.ahx-recipe-dashboard__stat--attention {
+    border-left-color: #d63638;
+}
+
+.ahx-recipe-dashboard__stat > .dashicons:first-child {
+    color: #2271b1;
+    font-size: 30px;
+    height: 36px;
+    width: 36px;
+}
+
+.ahx-recipe-dashboard__stat--attention > .dashicons:first-child {
+    color: #d63638;
+}
+
+.ahx-recipe-dashboard__stat > span:not(.dashicons) {
+    overflow-wrap: anywhere;
+}
+
+.ahx-recipe-dashboard__stat strong {
+    display: block;
+    font-size: 24px;
+    line-height: 1;
+    margin-bottom: 3px;
+}
+
+.ahx-recipe-dashboard__section {
+    margin-top: 24px;
+    min-width: 0;
+}
+
+.ahx-recipe-dashboard__section-heading {
+    margin-bottom: 10px;
+}
+
+.ahx-recipe-dashboard__links {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.ahx-recipe-dashboard__links a {
+    align-items: center;
+    border-bottom: 1px solid #dcdcde;
+    border-right: 1px solid #dcdcde;
+    display: flex;
+    gap: 8px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    padding: 13px 15px;
+    text-decoration: none;
+}
+
+.ahx-recipe-dashboard__links .dashicons {
+    flex: 0 0 20px;
+}
+
+.ahx-recipe-dashboard__summary {
+    display: grid;
+    gap: 24px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.ahx-recipe-dashboard__table {
+    overflow-x: auto;
+}
+
+.ahx-recipe-dashboard__table table {
+    min-width: 540px;
+}
+
+.ahx-recipe-dashboard__table td:first-child {
+    overflow-wrap: anywhere;
+}
+
+.ahx-recipe-dashboard__table th:last-child,
+.ahx-recipe-dashboard__table td:last-child {
+    text-align: right;
+    width: 100px;
+}
+
+.ahx-recipe-dashboard__empty {
+    align-items: center;
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    display: flex;
+    gap: 12px;
+    padding: 16px;
+}
+
+.ahx-recipe-dashboard__empty .dashicons {
+    color: #008a20;
+    flex: 0 0 24px;
+    font-size: 24px;
+    height: 24px;
+    width: 24px;
+}
+
+.ahx-recipe-dashboard__empty p {
+    margin: 0;
+}
+
+.ahx-recipe-dashboard__shortcodes {
+    background: #fff;
+    border: 1px solid #c3c4c7;
+    margin: 0;
+}
+
+.ahx-recipe-dashboard__shortcodes > div {
+    border-bottom: 1px solid #dcdcde;
+    display: grid;
+    gap: 6px;
+    padding: 13px 15px;
+}
+
+.ahx-recipe-dashboard__shortcodes > div:last-child {
+    border-bottom: 0;
+}
+
+.ahx-recipe-dashboard__shortcodes dt,
+.ahx-recipe-dashboard__shortcodes dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+}
+
+.ahx-recipe-dashboard__shortcodes code {
+    overflow-wrap: anywhere;
+}
+
+@media screen and (max-width: 1100px) {
+    .ahx-recipe-dashboard__stats,
+    .ahx-recipe-dashboard__links {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+}
+
+@media screen and (max-width: 782px) {
+    .ahx-recipe-dashboard__heading,
+    .ahx-recipe-dashboard__section-heading {
+        align-items: flex-start;
+        flex-direction: column;
+    }
+
+    .ahx-recipe-dashboard__stats,
+    .ahx-recipe-dashboard__links,
+    .ahx-recipe-dashboard__summary {
+        grid-template-columns: 1fr;
+    }
+}
+
 .ahx-recipe-editor > p > label,
 .ahx-recipe-editor > p > select {
     display: block;
