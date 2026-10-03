@@ -190,19 +190,6 @@ body.ahx-recipe-image-open {
     padding-inline-start: .35rem;
 }
 
-.ahx-recipe__step-label {
-    display: block;
-}
-
-.ahx-recipe__step-label input[type="checkbox"] {
-    display: none;
-}
-
-.ahx-recipe__instructions li.is-checked {
-    color: var(--recipe-muted);
-    text-decoration: line-through;
-}
-
 .ahx-recipe__bring {
     background: var(--recipe-accent);
     border: 0;
@@ -235,44 +222,6 @@ body.ahx-recipe-image-open {
 
 .ahx-recipe--split .ahx-recipe__body {
     grid-template-columns: minmax(220px, .8fr) minmax(0, 1.7fr);
-}
-
-.ahx-recipe--checklist .ahx-recipe__body {
-    grid-template-columns: 1fr;
-}
-
-.ahx-recipe--checklist .ahx-recipe__ingredients,
-.ahx-recipe--checklist .ahx-recipe__instructions {
-    border: 1px solid var(--recipe-line);
-    padding: 1rem;
-}
-
-.ahx-recipe--checklist .ahx-recipe__instructions li {
-    list-style: none;
-    padding-block: .5rem;
-    padding-inline-start: 0;
-}
-
-.ahx-recipe--checklist .ahx-recipe__instructions ol {
-    list-style: none;
-    padding-inline-start: 0;
-}
-
-.ahx-recipe--checklist .ahx-recipe__instructions li label {
-    align-items: flex-start;
-    display: flex;
-    gap: .55rem;
-}
-
-.ahx-recipe--checklist .ahx-recipe__step-label input[type="checkbox"] {
-    display: inline-block;
-    flex: 0 0 auto;
-    margin-block: .2em 0;
-}
-
-.ahx-recipe--checklist .ahx-recipe__instructions input[type="checkbox"] {
-    flex: 0 0 auto;
-    margin-block: .2em 0;
 }
 
 .ahx-recipe-collection [hidden] {

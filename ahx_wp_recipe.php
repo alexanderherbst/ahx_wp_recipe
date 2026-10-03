@@ -2,7 +2,7 @@
 /**
  * Plugin Name: AHX WP Recipe
  * Description: Rezepte verwalten, skalieren, anzeigen und für Bring! vorbereiten.
- * Version: v2.2.0
+ * Version: v2.3.0
  * Author: Alexander Herbst
  * Text Domain: ahx_wp_recipe
  */
@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('AHX_WP_RECIPE_VERSION', 'v2.2.0');
+define('AHX_WP_RECIPE_VERSION', 'v2.3.0');
 define('AHX_WP_RECIPE_PATH', plugin_dir_path(__FILE__));
 define('AHX_WP_RECIPE_URL', plugin_dir_url(__FILE__));
 
@@ -149,6 +149,7 @@ function ahx_wp_recipe_render_meta_box($post) {
     wp_nonce_field('ahx_wp_recipe_save', 'ahx_wp_recipe_nonce');
     $servings = max(1, (int) get_post_meta($post->ID, '_ahx_recipe_servings', true));
     $layout = get_post_meta($post->ID, '_ahx_recipe_layout', true) ?: 'classic';
+    $layout = $layout === 'checklist' ? 'split' : $layout;
     $ingredients = ahx_wp_recipe_get_ingredients($post->ID, true);
     $instructions = get_post_meta($post->ID, '_ahx_recipe_instructions', true);
     if (!$ingredients) {
@@ -165,8 +166,7 @@ function ahx_wp_recipe_render_meta_box($post) {
             <label for="ahx-recipe-layout"><strong><?php esc_html_e('Darstellung', 'ahx_wp_recipe'); ?></strong></label>
             <select id="ahx-recipe-layout" name="ahx_recipe_layout">
                 <option value="classic" <?php selected($layout, 'classic'); ?>><?php esc_html_e('Klassisch: Zutaten und Schritte untereinander', 'ahx_wp_recipe'); ?></option>
-                <option value="split" <?php selected($layout, 'split'); ?>><?php esc_html_e('Zweiteilig: Zutaten neben der Anleitung', 'ahx_wp_recipe'); ?></option>
-                <option value="checklist" <?php selected($layout, 'checklist'); ?>><?php esc_html_e('Kochmodus: Zutaten und Schritte zum Abhaken', 'ahx_wp_recipe'); ?></option>
+                <option value="split" <?php selected($layout, 'split'); ?>><?php esc_html_e('Kochmodus: Zutaten neben der Anleitung', 'ahx_wp_recipe'); ?></option>
             </select>
         </p>
         <p>
@@ -208,7 +208,8 @@ function ahx_wp_recipe_save_meta($post_id) {
     $servings = isset($_POST['ahx_recipe_servings']) ? min(999, max(1, absint($_POST['ahx_recipe_servings']))) : 1;
     update_post_meta($post_id, '_ahx_recipe_servings', $servings);
     $layout = sanitize_key(wp_unslash($_POST['ahx_recipe_layout'] ?? 'classic'));
-    update_post_meta($post_id, '_ahx_recipe_layout', in_array($layout, ['classic', 'split', 'checklist'], true) ? $layout : 'classic');
+    $layout = $layout === 'checklist' ? 'split' : $layout;
+    update_post_meta($post_id, '_ahx_recipe_layout', in_array($layout, ['classic', 'split'], true) ? $layout : 'classic');
 
     $source_url = esc_url_raw(wp_unslash($_POST['ahx_recipe_source_url'] ?? ''));
     if ($source_url !== '') {
@@ -1166,7 +1167,8 @@ function ahx_wp_recipe_render_recipe($post_id, $content = '') {
     $recipe_url = get_post_status($post_id) === 'publish' ? get_permalink($post_id) : '';
     $bring_deeplink = ahx_wp_recipe_bring_deeplink($recipe_url, $servings);
     $layout = get_post_meta($post_id, '_ahx_recipe_layout', true) ?: 'classic';
-    if (!in_array($layout, ['classic', 'split', 'checklist'], true)) {
+    $layout = $layout === 'checklist' ? 'split' : $layout;
+    if (!in_array($layout, ['classic', 'split'], true)) {
         $layout = 'classic';
     }
     $source_url = get_post_meta($post_id, '_ahx_recipe_source_url', true);
@@ -1198,8 +1200,7 @@ function ahx_wp_recipe_render_recipe($post_id, $content = '') {
             <label class="ahx-recipe__layout-control"><span><?php esc_html_e('Darstellung', 'ahx_wp_recipe'); ?></span>
                 <select data-ahx-layout>
                     <option value="classic" <?php selected($layout, 'classic'); ?>><?php esc_html_e('Klassisch', 'ahx_wp_recipe'); ?></option>
-                    <option value="split" <?php selected($layout, 'split'); ?>><?php esc_html_e('Zweiteilig', 'ahx_wp_recipe'); ?></option>
-                    <option value="checklist" <?php selected($layout, 'checklist'); ?>><?php esc_html_e('Kochmodus', 'ahx_wp_recipe'); ?></option>
+                    <option value="split" <?php selected($layout, 'split'); ?>><?php esc_html_e('Kochmodus', 'ahx_wp_recipe'); ?></option>
                 </select>
             </label>
         </div>
@@ -1228,7 +1229,7 @@ function ahx_wp_recipe_render_recipe($post_id, $content = '') {
             </section>
             <section class="ahx-recipe__instructions">
                 <h2><?php esc_html_e('Zubereitung', 'ahx_wp_recipe'); ?></h2>
-                <?php if ($instructions) : ?><ol><?php foreach ($instructions as $instruction) : ?><li itemprop="recipeInstructions" itemscope itemtype="https://schema.org/HowToStep"><label class="ahx-recipe__step-label"><input type="checkbox" data-ahx-step-check><span itemprop="text"><?php echo esc_html($instruction); ?></span></label></li><?php endforeach; ?></ol><?php else : ?><p><?php esc_html_e('Noch keine Zubereitungsschritte eingetragen.', 'ahx_wp_recipe'); ?></p><?php endif; ?>
+                <?php if ($instructions) : ?><ol><?php foreach ($instructions as $instruction) : ?><li itemprop="recipeInstructions" itemscope itemtype="https://schema.org/HowToStep"><span itemprop="text"><?php echo esc_html($instruction); ?></span></li><?php endforeach; ?></ol><?php else : ?><p><?php esc_html_e('Noch keine Zubereitungsschritte eingetragen.', 'ahx_wp_recipe'); ?></p><?php endif; ?>
             </section>
         </div>
     </article>

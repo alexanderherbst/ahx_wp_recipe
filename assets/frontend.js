@@ -242,6 +242,71 @@ document.addEventListener('input', function (event) {
     });
 });
 
+const ahxRecipeUpdateScreenWakeLock = (function () {
+    let screenWakeLock = null;
+    let requestPending = false;
+    let pageActive = true;
+
+    function shouldKeepScreenAwake() {
+        return pageActive && document.visibilityState === 'visible'
+            && Boolean(document.querySelector('[data-ahx-recipe].ahx-recipe--split'));
+    }
+
+    async function updateScreenWakeLock() {
+        if (!window.isSecureContext || !navigator.wakeLock) {
+            return;
+        }
+        let ownsRequest = false;
+        try {
+            if (!shouldKeepScreenAwake()) {
+                if (screenWakeLock) {
+                    const previousLock = screenWakeLock;
+                    screenWakeLock = null;
+                    await previousLock.release();
+                }
+                return;
+            }
+            if (screenWakeLock || requestPending) {
+                return;
+            }
+            requestPending = true;
+            ownsRequest = true;
+            const acquiredLock = await navigator.wakeLock.request('screen');
+            if (!shouldKeepScreenAwake()) {
+                await acquiredLock.release();
+                return;
+            }
+            screenWakeLock = acquiredLock;
+            acquiredLock.addEventListener('release', function () {
+                if (screenWakeLock === acquiredLock) {
+                    screenWakeLock = null;
+                }
+            });
+            if (acquiredLock.released) {
+                screenWakeLock = null;
+            }
+        } catch (error) {
+            return;
+        } finally {
+            if (ownsRequest) {
+                requestPending = false;
+            }
+        }
+    }
+
+    document.addEventListener('visibilitychange', updateScreenWakeLock);
+    window.addEventListener('pagehide', function () {
+        pageActive = false;
+        updateScreenWakeLock();
+    });
+    window.addEventListener('pageshow', function () {
+        pageActive = true;
+        updateScreenWakeLock();
+    });
+    updateScreenWakeLock();
+    return updateScreenWakeLock;
+}());
+
 document.addEventListener('change', function (event) {
     const layoutSelect = event.target.closest('[data-ahx-layout]');
     if (!layoutSelect) {
@@ -249,9 +314,10 @@ document.addEventListener('change', function (event) {
     }
 
     const recipe = layoutSelect.closest('[data-ahx-recipe]');
-    ['classic', 'split', 'checklist'].forEach(function (layout) {
+    ['classic', 'split'].forEach(function (layout) {
         recipe.classList.toggle('ahx-recipe--' + layout, layoutSelect.value === layout);
     });
+    ahxRecipeUpdateScreenWakeLock();
 });
 
 document.addEventListener('click', function (event) {
@@ -307,16 +373,6 @@ document.addEventListener('click', function (event) {
         reportCopied();
     } else {
         reportCopyFailed();
-    }
-});
-
-document.addEventListener('change', function (event) {
-    if (!event.target.matches('[data-ahx-step-check]')) {
-        return;
-    }
-    const step = event.target.closest('.ahx-recipe__instructions li');
-    if (step) {
-        step.classList.toggle('is-checked', event.target.checked);
     }
 });
 
