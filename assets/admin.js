@@ -1,4 +1,41 @@
 document.addEventListener('click', function (event) {
+    const synonymAdd = event.target.closest('[data-ahx-synonym-add]');
+    if (synonymAdd) {
+        const form = synonymAdd.closest('[data-ahx-synonyms]');
+        const rows = form.querySelector('[data-ahx-synonym-rows]');
+        if (rows.children.length >= 200) {
+            return;
+        }
+        const index = Math.max(-1, ...Array.from(rows.children).map(function (row) { return Number(row.dataset.ahxSynonymIndex); })) + 1;
+        const row = form.querySelector('[data-ahx-synonym-template]').content.firstElementChild.cloneNode(true);
+        row.dataset.ahxSynonymIndex = String(index);
+        row.querySelectorAll('[name]').forEach(function (input) {
+            input.name = input.name.replace('[__index__]', '[' + index + ']');
+        });
+        rows.append(row);
+        synonymAdd.disabled = rows.children.length >= 200;
+        row.querySelector('input').focus();
+    }
+    const synonymRemove = event.target.closest('[data-ahx-synonym-remove]');
+    if (synonymRemove) {
+        const form = synonymRemove.closest('[data-ahx-synonyms]');
+        const rows = form.querySelector('[data-ahx-synonym-rows]');
+        const row = synonymRemove.closest('.ahx-recipe-synonym-row');
+        if (rows.children.length > 1) {
+            row.remove();
+        } else {
+            row.querySelectorAll('input, textarea').forEach(function (input) { input.value = ''; });
+        }
+        form.querySelector('[data-ahx-synonym-add]').disabled = false;
+        rows.lastElementChild.querySelector('input').focus();
+    }
+    const imageSelectionButton = event.target.closest('[data-ahx-recipe-select-images]');
+    if (imageSelectionButton) {
+        imageSelectionButton.closest('form').querySelectorAll('.ahx-recipe-image-choice input[name="recipe_images[]"]').forEach(function (input) {
+            input.checked = imageSelectionButton.dataset.ahxRecipeSelectImages === 'all';
+        });
+    }
+
     const addButton = event.target.closest('.ahx-recipe-add-ingredient');
     if (addButton) {
         const rows = document.querySelector('.ahx-recipe-ingredient-rows');
@@ -21,5 +58,19 @@ document.addEventListener('click', function (event) {
         } else {
             removeButton.closest('.ahx-recipe-row').querySelectorAll('input').forEach(function (input) { input.value = ''; });
         }
+    }
+});
+
+document.querySelectorAll('.ahx-recipe-image-choice img').forEach(function (image) {
+    const dimensions = image.closest('.ahx-recipe-image-choice').querySelector('.ahx-recipe-image-dimensions');
+    function updateDimensions() {
+        dimensions.textContent = image.naturalWidth && image.naturalHeight
+            ? image.naturalWidth + ' \u00d7 ' + image.naturalHeight + ' px'
+            : dimensions.dataset.unavailable;
+    }
+    image.addEventListener('load', updateDimensions);
+    image.addEventListener('error', updateDimensions);
+    if (image.complete) {
+        updateDimensions();
     }
 });

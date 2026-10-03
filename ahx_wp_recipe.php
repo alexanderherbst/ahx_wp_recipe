@@ -2,7 +2,7 @@
 /**
  * Plugin Name: AHX WP Recipe
  * Description: Rezepte verwalten, skalieren, anzeigen und für Bring! vorbereiten.
- * Version: v1.2.0
+ * Version: v2.0.0
  * Author: Alexander Herbst
  * Text Domain: ahx_wp_recipe
  */
@@ -11,14 +11,14 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('AHX_WP_RECIPE_VERSION', 'v1.2.0');
+define('AHX_WP_RECIPE_VERSION', 'v2.0.0');
 define('AHX_WP_RECIPE_PATH', plugin_dir_path(__FILE__));
 define('AHX_WP_RECIPE_URL', plugin_dir_url(__FILE__));
 
 function ahx_wp_recipe_register_post_type() {
     register_post_type('ahx_recipe', [
         'labels' => [
-            'name' => __('Rezepte', 'ahx_wp_recipe'),
+            'name' => __('AHX Rezepte', 'ahx_wp_recipe'),
             'singular_name' => __('Rezept', 'ahx_wp_recipe'),
             'add_new_item' => __('Rezept hinzufügen', 'ahx_wp_recipe'),
             'edit_item' => __('Rezept bearbeiten', 'ahx_wp_recipe'),
@@ -31,6 +31,26 @@ function ahx_wp_recipe_register_post_type() {
         'menu_icon' => 'dashicons-food',
         'supports' => ['title', 'editor', 'excerpt', 'thumbnail'],
         'rewrite' => ['slug' => 'rezepte'],
+    ]);
+    register_taxonomy('ahx_recipe_type', ['ahx_recipe'], [
+        'labels' => [
+            'name' => __('Rezepttypen', 'ahx_wp_recipe'),
+            'singular_name' => __('Rezepttyp', 'ahx_wp_recipe'),
+            'search_items' => __('Rezepttypen suchen', 'ahx_wp_recipe'),
+            'all_items' => __('Alle Rezepttypen', 'ahx_wp_recipe'),
+            'edit_item' => __('Rezepttyp bearbeiten', 'ahx_wp_recipe'),
+            'update_item' => __('Rezepttyp aktualisieren', 'ahx_wp_recipe'),
+            'add_new_item' => __('Neuen Rezepttyp hinzufügen', 'ahx_wp_recipe'),
+            'new_item_name' => __('Name des neuen Rezepttyps', 'ahx_wp_recipe'),
+            'parent_item' => __('Übergeordneter Rezepttyp', 'ahx_wp_recipe'),
+            'parent_item_colon' => __('Übergeordneter Rezepttyp:', 'ahx_wp_recipe'),
+        ],
+        'hierarchical' => true,
+        'public' => false,
+        'show_ui' => true,
+        'show_admin_column' => true,
+        'show_in_rest' => true,
+        'rewrite' => false,
     ]);
 }
 add_action('init', 'ahx_wp_recipe_register_post_type');
@@ -219,7 +239,8 @@ function ahx_wp_recipe_save_meta($post_id) {
 add_action('save_post_ahx_recipe', 'ahx_wp_recipe_save_meta');
 
 function ahx_wp_recipe_admin_menu() {
-    add_submenu_page(
+    global $ahx_wp_recipe_import_hook, $ahx_wp_recipe_synonyms_hook;
+    $ahx_wp_recipe_import_hook = add_submenu_page(
         'edit.php?post_type=ahx_recipe',
         __('Rezepte importieren', 'ahx_wp_recipe'),
         __('Importieren', 'ahx_wp_recipe'),
@@ -227,20 +248,172 @@ function ahx_wp_recipe_admin_menu() {
         'ahx-wp-recipe-import',
         'ahx_wp_recipe_render_import_page'
     );
+    $ahx_wp_recipe_synonyms_hook = add_submenu_page(
+        'edit.php?post_type=ahx_recipe',
+        __('Zutaten-Synonyme', 'ahx_wp_recipe'),
+        __('Zutaten-Synonyme', 'ahx_wp_recipe'),
+        'manage_options',
+        'ahx-wp-recipe-synonyms',
+        'ahx_wp_recipe_render_synonyms_page'
+    );
 }
 add_action('admin_menu', 'ahx_wp_recipe_admin_menu');
 
 function ahx_wp_recipe_admin_assets($hook) {
+    global $ahx_wp_recipe_import_hook, $ahx_wp_recipe_synonyms_hook;
     $screen = get_current_screen();
     if (in_array($hook, ['post.php', 'post-new.php'], true) && $screen && $screen->post_type === 'ahx_recipe') {
-        wp_enqueue_script('ahx-wp-recipe-admin', AHX_WP_RECIPE_URL . 'assets/admin.js', [], AHX_WP_RECIPE_VERSION, true);
-        wp_enqueue_style('ahx-wp-recipe-admin', AHX_WP_RECIPE_URL . 'assets/admin.css', [], AHX_WP_RECIPE_VERSION);
+        wp_enqueue_script('ahx-wp-recipe-admin', AHX_WP_RECIPE_URL . 'assets/admin.js', [], (string) filemtime(AHX_WP_RECIPE_PATH . 'assets/admin.js'), true);
+        wp_enqueue_style('ahx-wp-recipe-admin', AHX_WP_RECIPE_URL . 'assets/admin.css', [], (string) filemtime(AHX_WP_RECIPE_PATH . 'assets/admin.css'));
     }
-    if ($screen && $screen->id === 'ahx_recipe_page_ahx-wp-recipe-import') {
-        wp_enqueue_style('ahx-wp-recipe-admin', AHX_WP_RECIPE_URL . 'assets/admin.css', [], AHX_WP_RECIPE_VERSION);
+    if ($hook && in_array($hook, [$ahx_wp_recipe_import_hook, $ahx_wp_recipe_synonyms_hook], true)) {
+        wp_enqueue_script('ahx-wp-recipe-admin', AHX_WP_RECIPE_URL . 'assets/admin.js', [], (string) filemtime(AHX_WP_RECIPE_PATH . 'assets/admin.js'), true);
+        wp_enqueue_style('ahx-wp-recipe-admin', AHX_WP_RECIPE_URL . 'assets/admin.css', [], (string) filemtime(AHX_WP_RECIPE_PATH . 'assets/admin.css'));
     }
 }
 add_action('admin_enqueue_scripts', 'ahx_wp_recipe_admin_assets');
+
+function ahx_wp_recipe_normalize_synonym_name($value) {
+    $value = strtr((string) $value, ['ä' => 'ae', 'Ä' => 'ae', 'ö' => 'oe', 'Ö' => 'oe', 'ü' => 'ue', 'Ü' => 'ue', 'ß' => 'ss', 'ẞ' => 'ss']);
+    $value = strtolower(remove_accents($value, 'en_US'));
+    $value = preg_replace('/\((n|en|e)\)/', '$1', $value);
+    $value = preg_replace('/[^a-z0-9\s]/u', ' ', $value);
+    return trim(preg_replace('/\s+/u', ' ', $value));
+}
+
+function ahx_wp_recipe_default_synonym_groups() {
+    return [
+        ['name' => 'Karotte', 'aliases' => ['Karotten', 'Möhre', 'Möhren', 'Mohrrübe', 'Mohrrüben']],
+        ['name' => 'Kartoffel', 'aliases' => ['Kartoffeln']],
+        ['name' => 'Zwiebel', 'aliases' => ['Zwiebeln']],
+        ['name' => 'Ei', 'aliases' => ['Eier', 'Ei(er)']],
+    ];
+}
+
+function ahx_wp_recipe_get_synonym_groups() {
+    $groups = get_option('ahx_wp_recipe_synonym_groups', ahx_wp_recipe_default_synonym_groups());
+    return is_array($groups) ? array_values(array_filter($groups, static function ($group) {
+        return is_array($group) && isset($group['name'], $group['aliases']) && is_string($group['name']) && is_array($group['aliases']);
+    })) : ahx_wp_recipe_default_synonym_groups();
+}
+
+function ahx_wp_recipe_sanitize_synonym_groups($input) {
+    $reject = static function ($message) {
+        add_settings_error('ahx_wp_recipe_synonym_groups', 'invalid_synonyms', $message);
+        return ahx_wp_recipe_get_synonym_groups();
+    };
+    if (!is_array($input) || count($input) > 200) {
+        return $reject(__('Ungültige Synonymgruppen. Maximal 200 Gruppen sind möglich.', 'ahx_wp_recipe'));
+    }
+    $groups = [];
+    $seen = [];
+    foreach ($input as $row) {
+        if (!is_array($row) || !isset($row['name'], $row['aliases']) || !is_string($row['name']) || (!is_string($row['aliases']) && !is_array($row['aliases']))) {
+            return $reject(__('Ungültige Synonymgruppe.', 'ahx_wp_recipe'));
+        }
+        $name = trim(sanitize_text_field($row['name']));
+        $aliases = is_array($row['aliases']) ? $row['aliases'] : preg_split('/\R/u', $row['aliases']);
+        if (!is_array($aliases)) {
+            return $reject(__('Ungültige Zeichenkodierung in den Synonymnamen.', 'ahx_wp_recipe'));
+        }
+        if (count($aliases) > 50) {
+            return $reject(__('Maximal 50 Synonyme pro Gruppe sind möglich.', 'ahx_wp_recipe'));
+        }
+        $clean_aliases = [];
+        foreach ($aliases as $alias) {
+            if (!is_string($alias)) {
+                return $reject(__('Ungültiger Synonymname.', 'ahx_wp_recipe'));
+            }
+            $alias = trim(sanitize_text_field($alias));
+            if ($alias !== '') {
+                $clean_aliases[] = $alias;
+            }
+        }
+        if ($name === '' && !$clean_aliases) {
+            continue;
+        }
+        $canonical = ahx_wp_recipe_normalize_synonym_name($name);
+        if ($canonical === '' || !preg_match('/^.{1,120}$/us', $name)) {
+            return $reject(__('Jede Gruppe benötigt einen gültigen Hauptnamen mit maximal 120 Zeichen.', 'ahx_wp_recipe'));
+        }
+        $local = [];
+        $unique_aliases = [];
+        foreach (array_merge([$name], $clean_aliases) as $position => $value) {
+            $normalized = ahx_wp_recipe_normalize_synonym_name($value);
+            if ($normalized === '' || !preg_match('/^.{1,120}$/us', $value)) {
+                return $reject(__('Synonymnamen müssen gültig sein und dürfen maximal 120 Zeichen enthalten.', 'ahx_wp_recipe'));
+            }
+            if (isset($seen[$normalized])) {
+                return $reject(sprintf(__('„%s“ ist mehreren Gruppen zugeordnet. Die bisherigen Gruppen wurden beibehalten.', 'ahx_wp_recipe'), $value));
+            }
+            if (isset($local[$normalized])) {
+                continue;
+            }
+            $local[$normalized] = true;
+            if ($position > 0) {
+                $unique_aliases[] = $value;
+            }
+        }
+        $seen += $local;
+        $groups[] = ['name' => $name, 'aliases' => $unique_aliases];
+    }
+    return $groups;
+}
+
+function ahx_wp_recipe_synonym_map($groups) {
+    $map = [];
+    foreach ($groups as $group) {
+        $canonical = ahx_wp_recipe_normalize_synonym_name($group['name']);
+        foreach (array_merge([$group['name']], $group['aliases']) as $name) {
+            $map[ahx_wp_recipe_normalize_synonym_name($name)] = $canonical;
+        }
+    }
+    return $map;
+}
+
+function ahx_wp_recipe_register_synonym_settings() {
+    register_setting('ahx_wp_recipe_synonyms', 'ahx_wp_recipe_synonym_groups', [
+        'type' => 'array',
+        'sanitize_callback' => 'ahx_wp_recipe_sanitize_synonym_groups',
+        'default' => ahx_wp_recipe_default_synonym_groups(),
+    ]);
+}
+add_action('admin_init', 'ahx_wp_recipe_register_synonym_settings');
+
+function ahx_wp_recipe_render_synonym_row($index, $group) {
+    ?>
+    <div class="ahx-recipe-synonym-row" data-ahx-synonym-index="<?php echo esc_attr($index); ?>">
+        <label><?php esc_html_e('Zutat (Hauptname)', 'ahx_wp_recipe'); ?><input type="text" maxlength="120" name="ahx_wp_recipe_synonym_groups[<?php echo esc_attr($index); ?>][name]" value="<?php echo esc_attr($group['name']); ?>"></label>
+        <label><?php esc_html_e('Synonyme (je eine Zeile)', 'ahx_wp_recipe'); ?><textarea rows="3" name="ahx_wp_recipe_synonym_groups[<?php echo esc_attr($index); ?>][aliases]"><?php echo esc_textarea(implode("\n", $group['aliases'])); ?></textarea></label>
+        <button type="button" class="button" data-ahx-synonym-remove aria-label="<?php esc_attr_e('Synonymgruppe entfernen', 'ahx_wp_recipe'); ?>" title="<?php esc_attr_e('Synonymgruppe entfernen', 'ahx_wp_recipe'); ?>"><span class="dashicons dashicons-trash" aria-hidden="true"></span></button>
+    </div>
+    <?php
+}
+
+function ahx_wp_recipe_render_synonyms_page() {
+    if (!current_user_can('manage_options')) {
+        return;
+    }
+    $groups = ahx_wp_recipe_get_synonym_groups();
+    if (!$groups) {
+        $groups = [['name' => '', 'aliases' => []]];
+    }
+    ?>
+    <div class="wrap">
+        <h1><?php esc_html_e('Zutaten-Synonyme', 'ahx_wp_recipe'); ?></h1>
+        <?php settings_errors(); ?>
+        <form method="post" action="options.php" class="ahx-recipe-synonyms" data-ahx-synonyms>
+            <?php settings_fields('ahx_wp_recipe_synonyms'); ?>
+            <div data-ahx-synonym-rows>
+                <?php foreach ($groups as $index => $group) { ahx_wp_recipe_render_synonym_row($index, $group); } ?>
+            </div>
+            <template data-ahx-synonym-template><?php ahx_wp_recipe_render_synonym_row('__index__', ['name' => '', 'aliases' => []]); ?></template>
+            <button type="button" class="button" data-ahx-synonym-add><span class="dashicons dashicons-plus-alt2" aria-hidden="true"></span> <?php esc_html_e('Synonymgruppe hinzufügen', 'ahx_wp_recipe'); ?></button>
+            <?php submit_button(); ?>
+        </form>
+    </div>
+    <?php
+}
 
 function ahx_wp_recipe_store_import_payload($payload) {
     $token = wp_generate_password(20, false, false);
@@ -278,11 +451,16 @@ function ahx_wp_recipe_render_image_review($token, $payload) {
             <input type="hidden" name="action" value="ahx_wp_recipe_import_finish">
             <input type="hidden" name="token" value="<?php echo esc_attr($token); ?>">
             <?php wp_nonce_field('ahx_wp_recipe_import_finish_' . $token); ?>
+            <p class="ahx-recipe-image-actions">
+                <button type="button" class="button" data-ahx-recipe-select-images="all"><?php esc_html_e('Alle auswählen', 'ahx_wp_recipe'); ?></button>
+                <button type="button" class="button" data-ahx-recipe-select-images="none"><?php esc_html_e('Alle abwählen', 'ahx_wp_recipe'); ?></button>
+            </p>
             <div class="ahx-recipe-image-grid">
                 <?php foreach ($images as $index => $image_url) : ?>
                     <label class="ahx-recipe-image-choice">
                         <input type="checkbox" name="recipe_images[]" value="<?php echo esc_attr($index); ?>" checked>
                         <img src="<?php echo esc_url($image_url); ?>" alt="" loading="lazy">
+                        <span class="ahx-recipe-image-dimensions" data-unavailable="<?php esc_attr_e('Größe nicht verfügbar', 'ahx_wp_recipe'); ?>"><?php esc_html_e('Größe wird geladen ...', 'ahx_wp_recipe'); ?></span>
                     </label>
                 <?php endforeach; ?>
             </div>
@@ -861,6 +1039,16 @@ function ahx_wp_recipe_format_bring_ingredient($quantity, $unit, $item) {
     return trim($amount . ($amount !== '' && $item !== '' ? ' ' : '') . $item);
 }
 
+function ahx_wp_recipe_render_image_preview($attachment_id) {
+    $url = wp_get_attachment_image_url($attachment_id, 'full');
+    if (!$url) {
+        return '';
+    }
+    return '<a class="ahx-recipe__image-link" href="' . esc_url($url) . '" data-ahx-recipe-image itemprop="image" aria-label="' . esc_attr__('Rezeptbild vergrößern', 'ahx_wp_recipe') . '" title="' . esc_attr__('Rezeptbild vergrößern', 'ahx_wp_recipe') . '">'
+        . wp_get_attachment_image($attachment_id, 'medium', false, ['loading' => 'lazy', 'class' => 'ahx-recipe__gallery-image'])
+        . '</a>';
+}
+
 function ahx_wp_recipe_render_recipe($post_id, $content = '') {
     $ingredients = ahx_wp_recipe_get_ingredients($post_id);
     $instructions = get_post_meta($post_id, '_ahx_recipe_instructions', true);
@@ -875,19 +1063,24 @@ function ahx_wp_recipe_render_recipe($post_id, $content = '') {
     $source_url = get_post_meta($post_id, '_ahx_recipe_source_url', true);
     $gallery_ids = get_post_meta($post_id, '_ahx_recipe_gallery', true);
     $gallery_ids = is_array($gallery_ids) ? array_filter(array_map('absint', $gallery_ids)) : [];
+    $image_ids = array_unique(array_filter(array_merge([get_post_thumbnail_id($post_id)], $gallery_ids)));
 
     ob_start();
     ?>
     <article class="ahx-recipe ahx-recipe--<?php echo esc_attr($layout); ?>" data-ahx-recipe itemscope itemtype="https://schema.org/Recipe">
         <meta itemprop="name" content="<?php echo esc_attr(get_the_title($post_id)); ?>">
         <meta itemprop="recipeYield" content="<?php echo esc_attr($servings); ?>">
-        <?php if (has_post_thumbnail($post_id)) : ?><div class="ahx-recipe__image"><?php echo get_the_post_thumbnail($post_id, 'large', ['loading' => 'lazy', 'itemprop' => 'image']); ?></div><?php endif; ?>
-        <?php if ($gallery_ids) : ?>
+        <?php if ($image_ids) : ?>
             <div class="ahx-recipe__gallery">
-                <?php foreach ($gallery_ids as $attachment_id) : ?>
-                    <?php echo wp_get_attachment_image($attachment_id, 'medium', false, ['loading' => 'lazy', 'class' => 'ahx-recipe__gallery-image']); ?>
+                <?php foreach ($image_ids as $attachment_id) : ?>
+                    <?php echo ahx_wp_recipe_render_image_preview($attachment_id); ?>
                 <?php endforeach; ?>
             </div>
+            <dialog class="ahx-recipe-image-dialog" data-ahx-image-dialog aria-label="<?php esc_attr_e('Rezeptbild', 'ahx_wp_recipe'); ?>">
+                <button type="button" class="ahx-recipe-image-dialog__close" data-ahx-image-close aria-label="<?php esc_attr_e('Bildansicht schließen', 'ahx_wp_recipe'); ?>" title="<?php esc_attr_e('Bildansicht schließen', 'ahx_wp_recipe'); ?>">&times;</button>
+                <img class="ahx-recipe-image-dialog__image" data-ahx-image-full alt="">
+                <p data-ahx-image-error role="status" hidden><?php esc_html_e('Bild konnte nicht geladen werden.', 'ahx_wp_recipe'); ?></p>
+            </dialog>
         <?php endif; ?>
         <?php if ($source_url) : ?><p class="ahx-recipe__source"><?php esc_html_e('Quelle:', 'ahx_wp_recipe'); ?> <a href="<?php echo esc_url($source_url); ?>" target="_blank" rel="noopener noreferrer nofollow"><?php echo esc_html(wp_parse_url($source_url, PHP_URL_HOST)); ?></a></p><?php endif; ?>
         <?php if (trim($content) !== '') : ?><div class="ahx-recipe__intro"><?php echo wp_kses_post(wpautop($content)); ?></div><?php endif; ?>
@@ -911,7 +1104,7 @@ function ahx_wp_recipe_render_recipe($post_id, $content = '') {
                     $addition = trim((string) ($ingredient['addition'] ?? ''));
                     $copy_class = 'ahx-recipe__ingredient-copy' . ($addition !== '' ? ' has-addition' : '');
                     $bring_ingredient = ahx_wp_recipe_format_bring_ingredient($shown_amount, $ingredient['unit'] ?? '', $label);
-                    ?><li class="ahx-recipe__ingredient"><meta itemprop="recipeIngredient" content="<?php echo esc_attr($bring_ingredient); ?>"><input type="checkbox" data-ahx-check><span class="ahx-recipe__ingredient-amount"><span data-ahx-amount data-base="<?php echo esc_attr($amount === null ? '' : $amount); ?>"><?php echo esc_html($shown_amount); ?></span><?php if (!empty($ingredient['unit'])) : ?> <span data-ahx-unit><?php echo esc_html($ingredient['unit']); ?></span><?php endif; ?></span><span class="<?php echo esc_attr($copy_class); ?>"><span data-ahx-item><?php echo esc_html($label); ?></span><?php if ($addition !== '') : ?><span class="ahx-recipe__ingredient-addition" data-ahx-addition><?php echo esc_html($addition); ?></span><?php endif; ?></span></li>
+                    ?><li class="ahx-recipe__ingredient"><meta itemprop="recipeIngredient" content="<?php echo esc_attr($bring_ingredient); ?>"><span class="ahx-recipe__ingredient-amount"><span data-ahx-amount data-base="<?php echo esc_attr($amount === null ? '' : $amount); ?>"><?php echo esc_html($shown_amount); ?></span><?php if (!empty($ingredient['unit'])) : ?> <span data-ahx-unit><?php echo esc_html($ingredient['unit']); ?></span><?php endif; ?></span><span class="<?php echo esc_attr($copy_class); ?>"><span data-ahx-item><?php echo esc_html($label); ?></span><?php if ($addition !== '') : ?><span class="ahx-recipe__ingredient-addition" data-ahx-addition><?php echo esc_html($addition); ?></span><?php endif; ?></span></li>
                 <?php endforeach; ?></ul><?php else : ?><p><?php esc_html_e('Noch keine Zutaten eingetragen.', 'ahx_wp_recipe'); ?></p><?php endif; ?>
                 <?php if ($ingredients) : ?>
                     <div class="ahx-recipe__bring-form">
@@ -942,6 +1135,171 @@ function ahx_wp_recipe_filter_content($content) {
 }
 add_filter('the_content', 'ahx_wp_recipe_filter_content', 20);
 
+function ahx_wp_recipe_render_pantry_form($recipe_data) {
+    if (!$recipe_data) {
+        return;
+    }
+    $list_id = wp_unique_id('ahx-recipe-pantry-');
+    $synonym_groups = ahx_wp_recipe_get_synonym_groups();
+    $synonyms = ahx_wp_recipe_synonym_map($synonym_groups);
+    $used_groups = [];
+    $labels = [];
+    $units = ['g', 'kg', 'ml', 'l', 'Stück', 'EL', 'TL'];
+    foreach ($recipe_data as $recipe) {
+        foreach ($recipe['ingredients'] as $ingredient) {
+            if ($ingredient['label'] !== '') {
+                $labels[] = $ingredient['label'];
+                $normalized = ahx_wp_recipe_normalize_synonym_name($ingredient['label']);
+                if (isset($synonyms[$normalized])) {
+                    $used_groups[$synonyms[$normalized]] = true;
+                }
+            }
+            if ($ingredient['unit'] !== '') {
+                $units[] = $ingredient['unit'];
+            }
+        }
+    }
+    foreach ($synonym_groups as $group) {
+        if (isset($used_groups[ahx_wp_recipe_normalize_synonym_name($group['name'])])) {
+            $labels = array_merge($labels, [$group['name']], $group['aliases']);
+        }
+    }
+    $labels = array_unique($labels);
+    $units = array_unique($units);
+    natcasesort($labels);
+    natcasesort($units);
+    ?>
+    <form class="ahx-recipe-pantry" data-ahx-pantry hidden>
+        <h2><?php esc_html_e('Was ist vorhanden?', 'ahx_wp_recipe'); ?></h2>
+        <fieldset>
+            <legend><?php esc_html_e('Vorhandene Zutaten', 'ahx_wp_recipe'); ?></legend>
+            <div class="ahx-recipe-pantry__rows" data-ahx-pantry-rows></div>
+        </fieldset>
+        <template data-ahx-pantry-row>
+            <div class="ahx-recipe-pantry__row">
+                <label><?php esc_html_e('Zutat', 'ahx_wp_recipe'); ?><input type="text" maxlength="120" list="<?php echo esc_attr($list_id); ?>" data-ahx-pantry-name></label>
+                <label><?php esc_html_e('Menge (optional)', 'ahx_wp_recipe'); ?><input type="number" min="0" max="1000000" step="any" inputmode="decimal" data-ahx-pantry-quantity></label>
+                <label><?php esc_html_e('Einheit', 'ahx_wp_recipe'); ?><select data-ahx-pantry-unit>
+                    <option value=""><?php esc_html_e('Ohne Einheit', 'ahx_wp_recipe'); ?></option>
+                    <?php foreach ($units as $unit) : ?><option value="<?php echo esc_attr($unit); ?>"><?php echo esc_html($unit); ?></option><?php endforeach; ?>
+                </select></label>
+                <button type="button" class="ahx-recipe-pantry__remove" data-ahx-pantry-remove aria-label="<?php esc_attr_e('Zutat entfernen', 'ahx_wp_recipe'); ?>" title="<?php esc_attr_e('Zutat entfernen', 'ahx_wp_recipe'); ?>"><span class="dashicons dashicons-trash" aria-hidden="true"></span></button>
+            </div>
+        </template>
+        <datalist id="<?php echo esc_attr($list_id); ?>">
+            <?php foreach ($labels as $label) : ?><option value="<?php echo esc_attr($label); ?>"></option><?php endforeach; ?>
+        </datalist>
+        <div class="ahx-recipe-pantry__controls">
+            <button type="button" data-ahx-pantry-add><span class="dashicons dashicons-plus-alt2" aria-hidden="true"></span><?php esc_html_e('Zutat hinzufügen', 'ahx_wp_recipe'); ?></button>
+            <label><?php esc_html_e('Portionen', 'ahx_wp_recipe'); ?><input type="number" min="1" max="999" step="1" value="2" data-ahx-pantry-servings></label>
+            <label class="ahx-recipe-pantry__complete"><input type="checkbox" data-ahx-pantry-complete><?php esc_html_e('Nur mit allen Zutaten', 'ahx_wp_recipe'); ?></label>
+        </div>
+        <div class="ahx-recipe-pantry__actions">
+            <button type="submit"><span class="dashicons dashicons-search" aria-hidden="true"></span><?php esc_html_e('Rezepte vorschlagen', 'ahx_wp_recipe'); ?></button>
+            <button type="reset"><span class="dashicons dashicons-image-rotate" aria-hidden="true"></span><?php esc_html_e('Zurücksetzen', 'ahx_wp_recipe'); ?></button>
+        </div>
+        <p class="ahx-recipe-pantry__status" data-ahx-pantry-status role="status" aria-live="polite" hidden></p>
+        <script type="application/json" data-ahx-pantry-data><?php echo wp_json_encode($recipe_data, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?></script>
+        <script type="application/json" data-ahx-pantry-synonyms><?php echo wp_json_encode((object) $synonyms, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT); ?></script>
+    </form>
+    <p data-ahx-pantry-empty hidden><?php esc_html_e('Keine passenden Rezepte gefunden.', 'ahx_wp_recipe'); ?></p>
+    <?php
+}
+
+function ahx_wp_recipe_render_collection($recipes) {
+    $groups = [];
+    $untyped = [];
+    $recipe_types = [];
+    $recipe_data = [];
+    foreach ($recipes as $recipe) {
+        $ingredients = ahx_wp_recipe_get_ingredients($recipe->ID);
+        $recipe_data[$recipe->ID] = [
+            'servings' => max(1, (int) get_post_meta($recipe->ID, '_ahx_recipe_servings', true)),
+            'ingredients' => array_map(static function ($ingredient) {
+                $quantity = ahx_wp_recipe_parse_quantity($ingredient['quantity']);
+                return [
+                    'label' => $ingredient['label'],
+                    'quantity' => $quantity !== null && is_finite($quantity) && $quantity >= 0 ? $quantity : null,
+                    'unit' => $ingredient['unit'],
+                ];
+            }, $ingredients),
+        ];
+        $types = get_the_terms($recipe->ID, 'ahx_recipe_type');
+        $types = is_array($types) ? $types : [];
+        $recipe_types[$recipe->ID] = $types;
+        if (!$types) {
+            $untyped[] = $recipe;
+        }
+        foreach ($types as $type) {
+            if (!isset($groups[$type->term_id])) {
+                $groups[$type->term_id] = ['name' => $type->name, 'recipes' => []];
+            }
+            $groups[$type->term_id]['recipes'][] = $recipe;
+        }
+    }
+    uasort($groups, static function ($first, $second) {
+        return strnatcasecmp($first['name'], $second['name']);
+    });
+    if ($untyped) {
+        $groups['untyped'] = ['name' => __('Ohne Rezepttyp', 'ahx_wp_recipe'), 'recipes' => $untyped];
+    }
+    ob_start();
+    ?>
+    <div class="ahx-recipe-collection">
+        <?php ahx_wp_recipe_render_pantry_form($recipe_data); ?>
+        <?php if (!$groups) : ?>
+            <p><?php esc_html_e('Noch keine Rezepte veröffentlicht.', 'ahx_wp_recipe'); ?></p>
+        <?php endif; ?>
+        <?php foreach ($groups as $group) : ?>
+            <section class="ahx-recipe-collection__group">
+                <h2 class="ahx-recipe-collection__heading"><?php echo esc_html($group['name']); ?> <span class="ahx-recipe-collection__count">(<?php echo esc_html(count($group['recipes'])); ?>)</span></h2>
+                <div class="ahx-recipe-list">
+                    <?php foreach ($group['recipes'] as $recipe) : ?>
+                        <article class="ahx-recipe-list__item" data-ahx-pantry-recipe="<?php echo esc_attr($recipe->ID); ?>">
+                            <a class="ahx-recipe-list__link" href="<?php echo esc_url(get_permalink($recipe)); ?>">
+                                <?php if (has_post_thumbnail($recipe->ID)) : ?>
+                                    <?php echo get_the_post_thumbnail($recipe->ID, 'large', ['loading' => 'lazy', 'class' => 'ahx-recipe-list__image', 'alt' => '']); ?>
+                                <?php else : ?>
+                                    <span class="ahx-recipe-list__placeholder"><?php esc_html_e('Kein Rezeptbild', 'ahx_wp_recipe'); ?></span>
+                                <?php endif; ?>
+                                <div class="ahx-recipe-list__copy">
+                                    <h3><?php echo esc_html(get_the_title($recipe)); ?></h3>
+                                    <?php if ($recipe_types[$recipe->ID]) : ?>
+                                        <p class="ahx-recipe-list__types"><?php echo esc_html(implode(' / ', wp_list_pluck($recipe_types[$recipe->ID], 'name'))); ?></p>
+                                    <?php endif; ?>
+                                    <?php if (has_excerpt($recipe->ID)) : ?>
+                                        <p class="ahx-recipe-list__excerpt"><?php echo esc_html(get_the_excerpt($recipe)); ?></p>
+                                    <?php endif; ?>
+                                    <div class="ahx-recipe-list__match" data-ahx-pantry-match hidden></div>
+                                </div>
+                            </a>
+                        </article>
+                    <?php endforeach; ?>
+                </div>
+            </section>
+        <?php endforeach; ?>
+    </div>
+    <?php
+    return ob_get_clean();
+}
+
+function ahx_wp_recipe_archive_query($query) {
+    if (!is_admin() && $query->is_main_query() && $query->is_post_type_archive('ahx_recipe')) {
+        $query->set('posts_per_page', -1);
+        $query->set('orderby', 'title');
+        $query->set('order', 'ASC');
+    }
+}
+add_action('pre_get_posts', 'ahx_wp_recipe_archive_query');
+
+function ahx_wp_recipe_archive_template($template) {
+    if (is_post_type_archive('ahx_recipe')) {
+        return AHX_WP_RECIPE_PATH . 'templates/archive-recipe.php';
+    }
+    return $template;
+}
+add_filter('template_include', 'ahx_wp_recipe_archive_template');
+
 function ahx_wp_recipe_list_shortcode($attributes) {
     $attributes = shortcode_atts(['number' => 12], $attributes, 'ahx_wp_recipes');
     $query = new WP_Query([
@@ -949,30 +1307,15 @@ function ahx_wp_recipe_list_shortcode($attributes) {
         'post_status' => 'publish',
         'posts_per_page' => min(100, max(1, absint($attributes['number']))),
     ]);
-    ob_start();
-    echo '<div class="ahx-recipe-list">';
-    while ($query->have_posts()) {
-        $query->the_post();
-        echo '<article class="ahx-recipe-list__item"><a href="' . esc_url(get_permalink()) . '">';
-        if (has_post_thumbnail()) {
-            echo get_the_post_thumbnail(get_the_ID(), 'medium', ['loading' => 'lazy']);
-        }
-        echo '<h2>' . esc_html(get_the_title()) . '</h2></a>';
-        if (has_excerpt()) {
-            echo '<p>' . esc_html(get_the_excerpt()) . '</p>';
-        }
-        echo '</article>';
-    }
-    echo '</div>';
-    wp_reset_postdata();
-    return ob_get_clean();
+    return ahx_wp_recipe_render_collection($query->posts);
 }
 add_shortcode('ahx_wp_recipes', 'ahx_wp_recipe_list_shortcode');
 
 function ahx_wp_recipe_frontend_assets() {
     if (is_singular('ahx_recipe') || is_post_type_archive('ahx_recipe') || is_singular()) {
-        wp_enqueue_style('ahx-wp-recipe', AHX_WP_RECIPE_URL . 'assets/frontend.css', [], AHX_WP_RECIPE_VERSION);
-        wp_enqueue_script('ahx-wp-recipe', AHX_WP_RECIPE_URL . 'assets/frontend.js', [], AHX_WP_RECIPE_VERSION, true);
+        wp_enqueue_style('dashicons');
+        wp_enqueue_style('ahx-wp-recipe', AHX_WP_RECIPE_URL . 'assets/frontend.css', [], (string) filemtime(AHX_WP_RECIPE_PATH . 'assets/frontend.css'));
+        wp_enqueue_script('ahx-wp-recipe', AHX_WP_RECIPE_URL . 'assets/frontend.js', [], (string) filemtime(AHX_WP_RECIPE_PATH . 'assets/frontend.js'), true);
     }
 }
 add_action('wp_enqueue_scripts', 'ahx_wp_recipe_frontend_assets');
