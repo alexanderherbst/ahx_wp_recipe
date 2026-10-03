@@ -522,9 +522,10 @@ body.ahx-recipe-image-open {
 }
 
 .ahx-recipe-archive {
+    box-sizing: border-box;
     margin: 2rem auto 4rem;
-    max-width: 1120px;
-    padding-inline: 1.25rem;
+    max-width: 980px;
+    padding-inline: 20px;
 }
 
 .ahx-recipe-collection {
