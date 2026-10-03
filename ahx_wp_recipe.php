@@ -2,7 +2,7 @@
 /**
  * Plugin Name: AHX WP Recipe
  * Description: Rezepte verwalten, skalieren, anzeigen und für Bring! vorbereiten.
- * Version: v2.1.0
+ * Version: v2.2.0
  * Author: Alexander Herbst
  * Text Domain: ahx_wp_recipe
  */
@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('AHX_WP_RECIPE_VERSION', 'v2.1.0');
+define('AHX_WP_RECIPE_VERSION', 'v2.2.0');
 define('AHX_WP_RECIPE_PATH', plugin_dir_path(__FILE__));
 define('AHX_WP_RECIPE_URL', plugin_dir_url(__FILE__));
 
@@ -506,19 +506,20 @@ function ahx_wp_recipe_render_import_page() {
             wp_die(esc_html($suggestion->get_error_message()), 403);
         }
         $suggestion_url = get_post_meta($suggestion_id, '_ahx_recipe_source_url', true);
-        $suggestion_title = $suggestion->post_title === __('Chefkoch-Importvorschlag', 'ahx_wp_recipe') ? '' : $suggestion->post_title;
+        $default_titles = [__('Chefkoch-Importvorschlag', 'ahx_wp_recipe'), sprintf(__('%s-Importvorschlag', 'ahx_wp_recipe'), ahx_wp_recipe_import_provider($suggestion_url))];
+        $suggestion_title = in_array($suggestion->post_title, $default_titles, true) ? '' : $suggestion->post_title;
     }
     ?>
     <div class="wrap">
         <h1><?php esc_html_e('Rezept importieren', 'ahx_wp_recipe'); ?></h1>
-        <h2><?php esc_html_e('Von Chefkoch-URL importieren', 'ahx_wp_recipe'); ?></h2>
-        <p><?php esc_html_e('Füge die URL eines Chefkoch-Rezepts ein. Erkannte Zutaten und Zubereitung werden als bearbeitbarer Entwurf übernommen.', 'ahx_wp_recipe'); ?></p>
+        <h2><?php esc_html_e('Von Rezept-URL importieren', 'ahx_wp_recipe'); ?></h2>
+        <p><?php esc_html_e('Füge eine HTTPS-Rezept-URL von chefkoch.de oder gaumenfreundin.de ein. Erkannte Zutaten und Zubereitung werden als bearbeitbarer Entwurf übernommen.', 'ahx_wp_recipe'); ?></p>
         <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
             <input type="hidden" name="action" value="ahx_wp_recipe_import">
             <input type="hidden" name="recipe_suggestion_id" value="<?php echo esc_attr($suggestion_id); ?>">
             <?php wp_nonce_field('ahx_wp_recipe_import'); ?>
             <table class="form-table" role="presentation">
-                <tr><th><label for="ahx-recipe-import-url"><?php esc_html_e('Chefkoch-URL', 'ahx_wp_recipe'); ?></label></th><td><input class="large-text" id="ahx-recipe-import-url" name="recipe_url" type="url" placeholder="https://www.chefkoch.de/rezepte/..." value="<?php echo esc_attr($suggestion_url); ?>" required></td></tr>
+                <tr><th><label for="ahx-recipe-import-url"><?php esc_html_e('Rezept-URL', 'ahx_wp_recipe'); ?></label></th><td><input class="large-text" id="ahx-recipe-import-url" name="recipe_url" type="url" placeholder="https://www.gaumenfreundin.de/rezeptname/" value="<?php echo esc_attr($suggestion_url); ?>" required></td></tr>
                 <tr><th><label for="ahx-recipe-url-title"><?php esc_html_e('Rezepttitel (optional)', 'ahx_wp_recipe'); ?></label></th><td><input class="regular-text" id="ahx-recipe-url-title" name="recipe_title" type="text" value="<?php echo esc_attr($suggestion_title); ?>"></td></tr>
             </table>
             <?php submit_button(__('URL importieren', 'ahx_wp_recipe')); ?>
@@ -659,25 +660,38 @@ function ahx_wp_recipe_parse_import($text) {
     ];
 }
 
-function ahx_wp_recipe_is_chefkoch_url($url) {
+function ahx_wp_recipe_import_provider($url) {
     $parts = wp_parse_url($url);
+    $providers = ['chefkoch.de' => 'Chefkoch', 'www.chefkoch.de' => 'Chefkoch', 'gaumenfreundin.de' => 'Gaumenfreundin', 'www.gaumenfreundin.de' => 'Gaumenfreundin'];
     if (!is_array($parts)
         || strtolower($parts['scheme'] ?? '') !== 'https'
-        || !in_array(strtolower($parts['host'] ?? ''), ['chefkoch.de', 'www.chefkoch.de'], true)
+        || !isset($providers[strtolower($parts['host'] ?? '')])
         || isset($parts['user'])
         || isset($parts['pass'])
         || (isset($parts['port']) && (int) $parts['port'] !== 443)) {
-        return false;
+        return '';
     }
 
-    return wp_http_validate_url($url) !== false;
+    return wp_http_validate_url($url) !== false ? $providers[strtolower($parts['host'])] : '';
 }
 
-function ahx_wp_recipe_fetch_chefkoch_html($url) {
+function ahx_wp_recipe_is_chefkoch_url($url) {
+    return ahx_wp_recipe_import_provider($url) === 'Chefkoch';
+}
+
+function ahx_wp_recipe_is_import_url($url) {
+    $provider = ahx_wp_recipe_import_provider($url);
+    $path = (string) wp_parse_url($url, PHP_URL_PATH);
+    return $provider === 'Chefkoch' ? (bool) preg_match('~^/rezepte/[0-9]+/~', $path)
+        : ($provider === 'Gaumenfreundin' && (bool) preg_match('~^/[a-z0-9][a-z0-9-]*/?$~i', $path));
+}
+
+function ahx_wp_recipe_fetch_import_html($url) {
+    $provider = ahx_wp_recipe_import_provider($url);
     $current_url = esc_url_raw($url);
     for ($redirect_count = 0; $redirect_count <= 3; $redirect_count++) {
-        if (!ahx_wp_recipe_is_chefkoch_url($current_url)) {
-            return new WP_Error('invalid_chefkoch_url', __('Es sind nur HTTPS-URLs von chefkoch.de erlaubt.', 'ahx_wp_recipe'));
+        if (!$provider || ahx_wp_recipe_import_provider($current_url) !== $provider) {
+            return new WP_Error('invalid_import_url', __('Es sind nur HTTPS-URLs von chefkoch.de und gaumenfreundin.de erlaubt. Weiterleitungen müssen beim selben Anbieter bleiben.', 'ahx_wp_recipe'));
         }
 
         $response = wp_safe_remote_get($current_url, [
@@ -687,7 +701,7 @@ function ahx_wp_recipe_fetch_chefkoch_html($url) {
             'headers' => ['Accept' => 'text/html,application/xhtml+xml'],
         ]);
         if (is_wp_error($response)) {
-            return new WP_Error('chefkoch_fetch_failed', __('Die Chefkoch-Seite konnte nicht abgerufen werden.', 'ahx_wp_recipe'));
+            return new WP_Error('import_fetch_failed', __('Die Rezeptseite konnte nicht abgerufen werden.', 'ahx_wp_recipe'));
         }
 
         $status = (int) wp_remote_retrieve_response_code($response);
@@ -700,13 +714,20 @@ function ahx_wp_recipe_fetch_chefkoch_html($url) {
             continue;
         }
         if ($status < 200 || $status >= 300) {
-            return new WP_Error('chefkoch_http_error', sprintf(__('Chefkoch hat die Seite mit HTTP-Status %d nicht bereitgestellt.', 'ahx_wp_recipe'), $status));
+            return new WP_Error('import_http_error', sprintf(__('%1$s hat die Seite mit HTTP-Status %2$d nicht bereitgestellt.', 'ahx_wp_recipe'), $provider, $status));
         }
 
         return wp_remote_retrieve_body($response);
     }
 
-    return new WP_Error('chefkoch_redirect_failed', __('Die Chefkoch-Seite leitete auf eine nicht erlaubte oder zu oft umgeleitete URL weiter.', 'ahx_wp_recipe'));
+    return new WP_Error('import_redirect_failed', __('Die Rezeptseite leitete auf eine nicht erlaubte oder zu oft umgeleitete URL weiter.', 'ahx_wp_recipe'));
+}
+
+function ahx_wp_recipe_fetch_chefkoch_html($url) {
+    if (!ahx_wp_recipe_is_chefkoch_url($url)) {
+        return new WP_Error('invalid_chefkoch_url', __('Es sind nur HTTPS-URLs von chefkoch.de erlaubt.', 'ahx_wp_recipe'));
+    }
+    return ahx_wp_recipe_fetch_import_html($url);
 }
 
 function ahx_wp_recipe_find_schema_recipe($value) {
@@ -761,7 +782,7 @@ function ahx_wp_recipe_is_allowed_image_url($url) {
         return false;
     }
     $host = strtolower($parts['host']);
-    $allowed_suffixes = ['chefkoch.de', 'chefkoch-cdn.de'];
+    $allowed_suffixes = ['chefkoch.de', 'chefkoch-cdn.de', 'gaumenfreundin.de'];
     $is_allowed_host = false;
     foreach ($allowed_suffixes as $suffix) {
         if ($host === $suffix || substr($host, -(strlen($suffix) + 1)) === '.' . $suffix) {
@@ -775,7 +796,7 @@ function ahx_wp_recipe_is_allowed_image_url($url) {
     return wp_http_validate_url($url) !== false;
 }
 
-function ahx_wp_recipe_extract_chefkoch_images($html, $recipe) {
+function ahx_wp_recipe_extract_import_images($html, $recipe) {
     $schema_image = $recipe['image'] ?? null;
     $candidates = [];
     if (is_string($schema_image)) {
@@ -820,9 +841,40 @@ function ahx_wp_recipe_extract_chefkoch_images($html, $recipe) {
     return array_values($unique);
 }
 
-function ahx_wp_recipe_parse_chefkoch_html($html, $source_url) {
+function ahx_wp_recipe_extract_chefkoch_images($html, $recipe) {
+    return ahx_wp_recipe_extract_import_images($html, $recipe);
+}
+
+function ahx_wp_recipe_extract_gaumenfreundin_ingredients($document, $recipe) {
+    $xpath = new DOMXPath($document);
+    $fragment = (string) wp_parse_url($recipe['@id'] ?? '', PHP_URL_FRAGMENT);
+    $container = strpos($fragment, 'wprm-recipe-container-') === 0 ? $document->getElementById($fragment) : null;
+    if (!$container) {
+        $container = $xpath->query('//*[starts-with(@id, "wprm-recipe-container-")]')->item(0);
+    }
+    if (!$container) {
+        return [];
+    }
+    $rows = $xpath->query('.//*[contains(concat(" ", normalize-space(@class), " "), " wprm-recipe-ingredient ")]', $container);
+    $ingredients = [];
+    foreach ($rows as $row) {
+        $ingredient = [];
+        foreach (['quantity' => 'amount', 'unit' => 'unit', 'label' => 'name', 'addition' => 'notes'] as $field => $suffix) {
+            $node = $xpath->query('.//*[contains(concat(" ", normalize-space(@class), " "), " wprm-recipe-ingredient-' . $suffix . ' ")]', $row)->item(0);
+            $ingredient[$field] = $node ? sanitize_text_field(trim(preg_replace('/[\p{Z}\s]+/u', ' ', $node->textContent))) : '';
+        }
+        $ingredient['quantity'] = trim(preg_replace('/\s+/', ' ', strtr($ingredient['quantity'], ['½' => ' 1/2', '¼' => ' 1/4', '¾' => ' 3/4', '⅓' => ' 1/3', '⅔' => ' 2/3', '⅛' => ' 1/8', '⅜' => ' 3/8', '⅝' => ' 5/8', '⅞' => ' 7/8'])));
+        if ($ingredient['label'] === '') {
+            return [];
+        }
+        $ingredients[] = $ingredient;
+    }
+    return count($ingredients) === count((array) ($recipe['recipeIngredient'] ?? [])) ? $ingredients : [];
+}
+
+function ahx_wp_recipe_parse_import_html($html, $source_url) {
     if (!class_exists('DOMDocument')) {
-        return new WP_Error('dom_unavailable', __('Der Chefkoch-Import benötigt die PHP-Erweiterung DOM.', 'ahx_wp_recipe'));
+        return new WP_Error('dom_unavailable', __('Der Rezeptimport benötigt die PHP-Erweiterung DOM.', 'ahx_wp_recipe'));
     }
     $document = new DOMDocument();
     $previous = libxml_use_internal_errors(true);
@@ -830,7 +882,7 @@ function ahx_wp_recipe_parse_chefkoch_html($html, $source_url) {
     libxml_clear_errors();
     libxml_use_internal_errors($previous);
     if (!$loaded) {
-        return new WP_Error('chefkoch_html_invalid', __('Die Chefkoch-Seite enthält kein lesbares HTML.', 'ahx_wp_recipe'));
+        return new WP_Error('import_html_invalid', __('Die Rezeptseite enthält kein lesbares HTML.', 'ahx_wp_recipe'));
     }
 
     $recipe = null;
@@ -847,7 +899,7 @@ function ahx_wp_recipe_parse_chefkoch_html($html, $source_url) {
         }
     }
     if (!$recipe) {
-        return new WP_Error('chefkoch_recipe_not_found', __('Auf der Seite wurden keine strukturierten Rezeptdaten gefunden. Prüfe die URL oder importiere die Seite als HTML-Datei.', 'ahx_wp_recipe'));
+        return new WP_Error('import_recipe_not_found', __('Auf der Seite wurden keine strukturierten Rezeptdaten gefunden. Prüfe die URL oder importiere die Seite als HTML-Datei.', 'ahx_wp_recipe'));
     }
 
     $ingredients = [];
@@ -867,16 +919,26 @@ function ahx_wp_recipe_parse_chefkoch_html($html, $source_url) {
         }
     }
 
+    if (ahx_wp_recipe_import_provider($source_url) === 'Gaumenfreundin') {
+        $structured_ingredients = ahx_wp_recipe_extract_gaumenfreundin_ingredients($document, $recipe);
+        if ($structured_ingredients) {
+            $ingredients = $structured_ingredients;
+        }
+    }
     $yield = is_array($recipe['recipeYield'] ?? null) ? reset($recipe['recipeYield']) : ($recipe['recipeYield'] ?? '');
     $servings = preg_match('/\d+/', (string) $yield, $serving_match) ? max(1, min(999, (int) $serving_match[0])) : 4;
     return [
-        'title' => sanitize_text_field($recipe['name'] ?? __('Importiertes Chefkoch-Rezept', 'ahx_wp_recipe')),
+        'title' => sanitize_text_field($recipe['name'] ?? __('Importiertes Rezept', 'ahx_wp_recipe')),
         'ingredients' => $ingredients,
         'instructions' => ahx_wp_recipe_flatten_schema_instructions($recipe['recipeInstructions'] ?? []),
         'servings' => $servings,
         'source_url' => esc_url_raw($source_url),
-        'images' => ahx_wp_recipe_extract_chefkoch_images($html, $recipe),
+        'images' => ahx_wp_recipe_extract_import_images($html, $recipe),
     ];
+}
+
+function ahx_wp_recipe_parse_chefkoch_html($html, $source_url) {
+    return ahx_wp_recipe_parse_import_html($html, $source_url);
 }
 
 function ahx_wp_recipe_create_imported_draft($parsed, $title_override = '', $suggestion_id = 0) {
@@ -931,14 +993,14 @@ function ahx_wp_recipe_handle_import() {
                 wp_die(esc_html__('Ungültiger Importvorschlag oder abweichende Quelle.', 'ahx_wp_recipe'), 403);
             }
         }
-        if (!ahx_wp_recipe_is_chefkoch_url($recipe_url)) {
-            wp_die(esc_html__('Bitte eine HTTPS-URL von chefkoch.de eingeben.', 'ahx_wp_recipe'), 400);
+        if (!ahx_wp_recipe_is_import_url($recipe_url)) {
+            wp_die(esc_html__('Bitte eine gültige HTTPS-Rezept-URL von chefkoch.de oder gaumenfreundin.de eingeben.', 'ahx_wp_recipe'), 400);
         }
-        $html = ahx_wp_recipe_fetch_chefkoch_html($recipe_url);
+        $html = ahx_wp_recipe_fetch_import_html($recipe_url);
         if (is_wp_error($html)) {
             wp_die(esc_html($html->get_error_message()), 400);
         }
-        $parsed = ahx_wp_recipe_parse_chefkoch_html($html, $recipe_url);
+        $parsed = ahx_wp_recipe_parse_import_html($html, $recipe_url);
         if (is_wp_error($parsed)) {
             wp_die(esc_html($parsed->get_error_message()), 400);
         }

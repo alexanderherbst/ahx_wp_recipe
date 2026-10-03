@@ -52,7 +52,7 @@ function ahx_wp_recipe_render_dashboard() {
         ['label' => __('Veröffentlicht', 'ahx_wp_recipe'), 'icon' => 'dashicons-yes-alt', 'value' => $data['counts']['publish'] ?? 0, 'url' => add_query_arg('post_status', 'publish', $list_url)],
         ['label' => __('Ausstehend', 'ahx_wp_recipe'), 'icon' => 'dashicons-visibility', 'value' => $data['counts']['pending'] ?? 0, 'url' => add_query_arg('post_status', 'pending', $list_url), 'attention' => !empty($data['counts']['pending'])],
         ['label' => __('Entwürfe', 'ahx_wp_recipe'), 'icon' => 'dashicons-edit', 'value' => $data['counts']['draft'] ?? 0, 'url' => add_query_arg('post_status', 'draft', $list_url)],
-        ['label' => __('Chefkoch-Vorschläge', 'ahx_wp_recipe'), 'icon' => 'dashicons-admin-links', 'value' => $data['proposals'], 'url' => add_query_arg('post_status', 'pending', $list_url), 'attention' => $data['proposals'] > 0],
+        ['label' => __('URL-Vorschläge', 'ahx_wp_recipe'), 'icon' => 'dashicons-admin-links', 'value' => $data['proposals'], 'url' => add_query_arg('post_status', 'pending', $list_url), 'attention' => $data['proposals'] > 0],
         ['label' => __('Rezepttypen', 'ahx_wp_recipe'), 'icon' => 'dashicons-category', 'value' => $data['types'], 'url' => current_user_can('manage_categories') ? admin_url('edit-tags.php?taxonomy=ahx_recipe_type&post_type=ahx_recipe') : ''],
         ['label' => __('Synonymgruppen', 'ahx_wp_recipe'), 'icon' => 'dashicons-editor-spellcheck', 'value' => $data['synonyms'], 'url' => current_user_can('manage_options') ? add_query_arg('page', 'ahx-wp-recipe-synonyms', $list_url) : ''],
     ];
@@ -69,7 +69,7 @@ function ahx_wp_recipe_render_dashboard() {
     if (current_user_can('manage_options')) {
         $links[] = ['label' => __('Zutaten-Synonyme', 'ahx_wp_recipe'), 'icon' => 'dashicons-editor-spellcheck', 'url' => add_query_arg('page', 'ahx-wp-recipe-synonyms', $list_url)];
     }
-    $kind_labels = ['recipe' => __('Frontend-Rezept', 'ahx_wp_recipe'), 'url' => __('Chefkoch-Vorschlag', 'ahx_wp_recipe'), 'imported' => __('Importierter Vorschlag', 'ahx_wp_recipe')];
+    $kind_labels = ['recipe' => __('Frontend-Rezept', 'ahx_wp_recipe'), 'url' => __('URL-Vorschlag', 'ahx_wp_recipe'), 'imported' => __('Importierter Vorschlag', 'ahx_wp_recipe')];
     ?>
     <div class="wrap ahx-recipe-dashboard">
         <div class="ahx-recipe-dashboard__heading">
@@ -128,7 +128,7 @@ function ahx_wp_recipe_render_dashboard() {
         <dl class="ahx-recipe-dashboard__shortcodes">
             <div><dt><code>[ahx_wp_recipes]</code></dt><dd><?php esc_html_e('Rezeptübersicht mit Vorratssuche', 'ahx_wp_recipe'); ?></dd></div>
             <div><dt><code>[ahx_wp_recipe_submit_recipe]</code></dt><dd><?php esc_html_e('Rezept einreichen', 'ahx_wp_recipe'); ?></dd></div>
-            <div><dt><code>[ahx_wp_recipe_submit_url]</code></dt><dd><?php esc_html_e('Chefkoch-URL vorschlagen', 'ahx_wp_recipe'); ?></dd></div>
+            <div><dt><code>[ahx_wp_recipe_submit_url]</code></dt><dd><?php esc_html_e('Rezept-URL vorschlagen', 'ahx_wp_recipe'); ?></dd></div>
         </dl>
         </section>
         </div>

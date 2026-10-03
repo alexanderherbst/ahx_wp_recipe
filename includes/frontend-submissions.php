@@ -22,11 +22,10 @@ function ahx_wp_recipe_validate_submission($input) {
     }
     if ($kind === 'url') {
         $url = esc_url_raw($input['url'] ?? '');
-        $parts = wp_parse_url($url);
-        if (strlen($url) > 2000 || !ahx_wp_recipe_is_chefkoch_url($url) || !preg_match('~^/rezepte/[0-9]+/~', $parts['path'] ?? '')) {
-            return new WP_Error('invalid_url', __('Bitte eine gültige HTTPS-Rezept-URL von chefkoch.de eingeben.', 'ahx_wp_recipe'));
+        if (strlen($url) > 2000 || !ahx_wp_recipe_is_import_url($url)) {
+            return new WP_Error('invalid_url', __('Bitte eine gültige HTTPS-Rezept-URL von chefkoch.de oder gaumenfreundin.de eingeben.', 'ahx_wp_recipe'));
         }
-        return ['kind' => 'url', 'title' => $title ?: __('Chefkoch-Importvorschlag', 'ahx_wp_recipe'), 'url' => $url];
+        return ['kind' => 'url', 'title' => $title ?: sprintf(__('%s-Importvorschlag', 'ahx_wp_recipe'), ahx_wp_recipe_import_provider($url)), 'url' => $url];
     }
     if ($kind !== 'recipe' || $title === '') {
         return new WP_Error('invalid_title', __('Bitte einen Rezepttitel eingeben.', 'ahx_wp_recipe'));
@@ -208,7 +207,7 @@ function ahx_wp_recipe_submission_meta_box($post) {
     if ($kind === 'url') {
         $url = get_post_meta($post->ID, '_ahx_recipe_source_url', true);
         $import_url = add_query_arg(['post_type' => 'ahx_recipe', 'page' => 'ahx-wp-recipe-import', 'suggestion' => $post->ID], admin_url('edit.php'));
-        echo '<p>' . esc_html__('Chefkoch-URL aus dem Frontend. Erst importieren, dann das entstandene Rezept prüfen und veröffentlichen.', 'ahx_wp_recipe') . '</p>';
+        echo '<p>' . esc_html__('Rezept-URL aus dem Frontend (Chefkoch oder Gaumenfreundin). Erst importieren, dann das entstandene Rezept prüfen und veröffentlichen.', 'ahx_wp_recipe') . '</p>';
         echo '<p><a href="' . esc_url($url) . '" target="_blank" rel="noopener noreferrer">' . esc_html($url) . '</a></p>';
         echo '<p><a class="button button-primary" href="' . esc_url($import_url) . '">' . esc_html__('URL importieren', 'ahx_wp_recipe') . '</a></p>';
     } else {
@@ -242,7 +241,7 @@ add_filter('manage_ahx_recipe_posts_columns', 'ahx_wp_recipe_submission_columns'
 function ahx_wp_recipe_submission_column($column, $post_id) {
     if ($column === 'ahx_recipe_submission') {
         $kind = get_post_meta($post_id, '_ahx_recipe_submission_kind', true);
-        $labels = ['recipe' => __('Frontend-Rezept', 'ahx_wp_recipe'), 'url' => __('Chefkoch-Vorschlag', 'ahx_wp_recipe'), 'imported' => __('Importierter Vorschlag', 'ahx_wp_recipe')];
+        $labels = ['recipe' => __('Frontend-Rezept', 'ahx_wp_recipe'), 'url' => __('URL-Vorschlag', 'ahx_wp_recipe'), 'imported' => __('Importierter Vorschlag', 'ahx_wp_recipe')];
         echo esc_html($labels[$kind] ?? '');
     }
 }
@@ -263,7 +262,7 @@ function ahx_wp_recipe_submission_shortcode($attributes = [], $content = null, $
         return '';
     }
     $kind = $separate[$tag];
-    $headings = [$kind => $kind === 'recipe' ? __('Rezept einreichen', 'ahx_wp_recipe') : __('Chefkoch-URL vorschlagen', 'ahx_wp_recipe')];
+    $headings = [$kind => $kind === 'recipe' ? __('Rezept einreichen', 'ahx_wp_recipe') : __('Rezept-URL vorschlagen', 'ahx_wp_recipe')];
     wp_enqueue_style('dashicons');
     wp_enqueue_style('ahx-wp-recipe', AHX_WP_RECIPE_URL . 'assets/frontend.css', [], (string) filemtime(AHX_WP_RECIPE_PATH . 'assets/frontend.css'));
     wp_enqueue_script('ahx-wp-recipe-submissions', AHX_WP_RECIPE_URL . 'assets/submissions.js', [], (string) filemtime(AHX_WP_RECIPE_PATH . 'assets/submissions.js'), true);
@@ -311,7 +310,7 @@ function ahx_wp_recipe_submission_shortcode($attributes = [], $content = null, $
                                 <button type="button" data-ahx-submission-remove-image aria-label="<?php esc_attr_e('Bild entfernen', 'ahx_wp_recipe'); ?>" title="<?php esc_attr_e('Bild entfernen', 'ahx_wp_recipe'); ?>"><span class="dashicons dashicons-trash" aria-hidden="true"></span></button>
                             </div>
                         <?php else : ?>
-                            <label><?php esc_html_e('Chefkoch-Rezept-URL', 'ahx_wp_recipe'); ?><input type="url" name="url" maxlength="2000" placeholder="https://www.chefkoch.de/rezepte/..." required></label>
+                            <label><?php esc_html_e('Rezept-URL (chefkoch.de oder gaumenfreundin.de)', 'ahx_wp_recipe'); ?><input type="url" name="url" maxlength="2000" placeholder="https://www.gaumenfreundin.de/rezeptname/" required></label>
                         <?php endif; ?>
                     </div>
                     <label class="ahx-recipe-submission__trap" aria-hidden="true">Website<input type="text" name="website" tabindex="-1" autocomplete="off"></label>
