@@ -534,6 +534,10 @@ body.ahx-recipe-image-open {
     color: var(--recipe-ink);
 }
 
+.entry-content > .ahx-recipe-collection {
+    margin-inline: 0;
+}
+
 .ahx-recipe-collection__group + .ahx-recipe-collection__group {
     margin-top: 2.5rem;
 }
