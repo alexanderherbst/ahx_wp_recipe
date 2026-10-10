@@ -10,6 +10,38 @@
     max-width: 980px;
 }
 
+body.ahx-recipe-page-background {
+    background: #fff;
+    isolation: isolate;
+}
+
+body.ahx-recipe-page-background .ahx-recipe {
+    --recipe-muted: #5f6d66;
+    background: transparent;
+}
+
+body.ahx-recipe-page-background::before {
+    background-position: center;
+    background-repeat: no-repeat;
+    background-size: cover;
+    content: "";
+    inset: 0;
+    opacity: .07;
+    pointer-events: none;
+    position: fixed;
+    z-index: -1;
+}
+
+body.ahx-recipe-page-background .ahx-recipe__servings {
+    flex-wrap: wrap;
+}
+
+@media print {
+    body.ahx-recipe-page-background::before {
+        display: none;
+    }
+}
+
 .ahx-recipe__gallery {
     display: flex;
     flex-wrap: wrap;

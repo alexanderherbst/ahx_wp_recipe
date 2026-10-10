@@ -2,7 +2,7 @@
 /**
  * Plugin Name: AHX WP Recipe
  * Description: Rezepte verwalten, skalieren, anzeigen und für Bring! vorbereiten.
- * Version: v2.3.2
+ * Version: v2.4.0
  * Author: Alexander Herbst
  * Text Domain: ahx_wp_recipe
  */
@@ -11,7 +11,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('AHX_WP_RECIPE_VERSION', 'v2.3.2');
+define('AHX_WP_RECIPE_VERSION', 'v2.4.0');
 define('AHX_WP_RECIPE_PATH', plugin_dir_path(__FILE__));
 define('AHX_WP_RECIPE_URL', plugin_dir_url(__FILE__));
 
@@ -1159,6 +1159,27 @@ function ahx_wp_recipe_render_image_preview($attachment_id) {
         . '</a>';
 }
 
+function ahx_wp_recipe_background_url($post_id) {
+    $gallery_ids = get_post_meta($post_id, '_ahx_recipe_gallery', true);
+    $gallery_ids = is_array($gallery_ids) ? array_filter(array_map('absint', $gallery_ids)) : [];
+    $image_ids = array_unique(array_filter(array_merge([get_post_thumbnail_id($post_id)], $gallery_ids)));
+    foreach ($image_ids as $attachment_id) {
+        $url = wp_get_attachment_image_url($attachment_id, 'large');
+        if ($url) {
+            return $url;
+        }
+    }
+    return '';
+}
+
+function ahx_wp_recipe_background_body_class($classes) {
+    if (is_singular('ahx_recipe') && ahx_wp_recipe_background_url(get_queried_object_id())) {
+        $classes[] = 'ahx-recipe-page-background';
+    }
+    return $classes;
+}
+add_filter('body_class', 'ahx_wp_recipe_background_body_class');
+
 function ahx_wp_recipe_render_recipe($post_id, $content = '') {
     $ingredients = ahx_wp_recipe_get_ingredients($post_id);
     $instructions = get_post_meta($post_id, '_ahx_recipe_instructions', true);
@@ -1425,6 +1446,12 @@ function ahx_wp_recipe_frontend_assets() {
     if (is_singular('ahx_recipe') || is_post_type_archive('ahx_recipe') || is_singular()) {
         wp_enqueue_style('dashicons');
         wp_enqueue_style('ahx-wp-recipe', AHX_WP_RECIPE_URL . 'assets/frontend.css', [], (string) filemtime(AHX_WP_RECIPE_PATH . 'assets/frontend.css'));
+        if (is_singular('ahx_recipe')) {
+            $background_url = ahx_wp_recipe_background_url(get_queried_object_id());
+            if ($background_url) {
+                wp_add_inline_style('ahx-wp-recipe', 'body.ahx-recipe-page-background::before { background-image: url(' . wp_json_encode(esc_url($background_url)) . '); }');
+            }
+        }
         wp_enqueue_script('ahx-wp-recipe', AHX_WP_RECIPE_URL . 'assets/frontend.js', [], (string) filemtime(AHX_WP_RECIPE_PATH . 'assets/frontend.js'), true);
     }
 }
@@ -1432,4 +1459,3 @@ add_action('wp_enqueue_scripts', 'ahx_wp_recipe_frontend_assets');
 
 require_once AHX_WP_RECIPE_PATH . 'includes/frontend-submissions.php';
 require_once AHX_WP_RECIPE_PATH . 'admin/dashboard-page.php';
-
